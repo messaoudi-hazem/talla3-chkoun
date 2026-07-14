@@ -33,9 +33,19 @@ export default function App() {
   const audioRef = useRef<HTMLAudioElement>(null);
 
   useEffect(() => {
+    const playMusic = () => {
+      if (audioRef.current) {
+        audioRef.current.play().catch(e => console.log("Auto-play prevented", e));
+        document.removeEventListener('click', playMusic);
+      }
+    };
+    document.addEventListener('click', playMusic);
+
     if (isPlayingMusic && audioRef.current) {
       audioRef.current.play().catch(e => console.log("Auto-play prevented", e));
     }
+
+    return () => document.removeEventListener('click', playMusic);
   }, []);
   const [secretWordInput, setSecretWordInput] = useState<string>("");
   const [questionInput, setQuestionInput] = useState<string>("");
