@@ -1,7 +1,6 @@
 import express from "express";
 import path from "path";
 import { createServer as createViteServer } from "vite";
-import { GoogleGenAI } from "@google/genai";
 import dotenv from "dotenv";
 
 // Load environment variables
@@ -37,70 +36,8 @@ app.post("/api/gemini/evaluate-guess", async (req, res) => {
     return res.json({ isMatch: true, explanation: "Sub-string matching" });
   }
 
-  // 3. Gemini AI Matching
-  const apiKey = process.env.GEMINI;
-  if (!apiKey || apiKey === "MY_GEMINI_API_KEY") {
-    console.log("GEMINI_API_KEY is not configured or placeholder. Skipping AI semantic match.");
-    return res.json({ isMatch: false, explanation: "Incorrect guess (local validation)" });
-  }
-
-  console.log("Using Gemini API key (length):", apiKey.length);
-
-  try {
-    const ai = new GoogleGenAI({
-      apiKey: apiKey,
-      httpOptions: {
-        headers: {
-          'User-Agent': 'aistudio-build',
-        }
-      }
-    });
-
-    const categoryContext = category ? `The category of the secret character is: ${category}.` : '';
-
-    const prompt = `You are a strict but fair game referee checking if a player's guess matches the target character's name in a trivia game.
-Target character: "${targetName}"
-Player's guess: "${guess}"
-${categoryContext}
-
-Compare them. You should return isMatch: true if they refer to the exact same entity (e.g., spelling mistakes, spelling variations, aliases).
-Otherwise, return isMatch: false.
-
-Return a JSON object exactly like this:
-{
-  "isMatch": boolean,
-  "explanation": "brief description of why"
-}`;
-
-    const response = await ai.models.generateContent({
-      model: "gemini-3.5-flash",
-      contents: prompt,
-      config: {
-        responseMimeType: "application/json",
-      }
-    });
-
-    const responseText = response.text;
-    console.log("Gemini API response text:", responseText);
-    
-    if (!responseText) {
-      throw new Error("No text returned from Gemini");
-    }
-
-    // Robustly strip any potential Markdown code fences that the model might generate
-    const cleanJSON = responseText.replace(/```json\s*|```\s*/gi, "").trim();
-    console.log("Cleaned JSON:", cleanJSON);
-    
-    const result = JSON.parse(cleanJSON);
-    return res.json({
-      isMatch: !!result.isMatch,
-      explanation: result.explanation || "AI semantic matching evaluated"
-    });
-  } catch (error: any) {
-    console.error("Gemini semantic verification error:");
-    console.error(error.stack || error);
-    return res.json({ isMatch: false, explanation: "AI comparison failed, falling back to local validation" });
-  }
+  // 3. Fallback: Not a match
+  return res.json({ isMatch: false, explanation: "Incorrect guess (local validation)" });
 });
 
 // Vite middleware for development
