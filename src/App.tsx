@@ -4,7 +4,7 @@ import {
   Trophy, Target, User, Users, HelpCircle, Send, 
   CheckCircle2, XCircle, ArrowRight, RotateCcw, 
   Plus, Play, Sparkles, MessageSquare, Crown, 
-  Shuffle, LogIn, Info, Gamepad2, UserCheck, QrCode,
+  Shuffle, LogIn, Info, UserSearch, UserCheck, QrCode,
   LogOut, WifiOff, Languages, Settings
 } from "lucide-react";
 import { QRCodeSVG } from 'qrcode.react';
@@ -13,7 +13,7 @@ import { auth, googleProvider, db } from "./lib/firebase";
 import { signInWithPopup, User as FirebaseUser, signOut } from "firebase/auth";
 import { collection, doc, onSnapshot, query, orderBy } from "firebase/firestore";
 import * as gameLogic from "./lib/gameLogic";
-import { translations } from "./translations";
+import { translations, t as translate } from "./translations";
 
 
 export default function App() {
@@ -230,6 +230,12 @@ export default function App() {
   }, [history]);
 
   useEffect(() => {
+    if (activeTab === 'history' && historyContainerRef.current) {
+      historyContainerRef.current.scrollTo({ top: historyContainerRef.current.scrollHeight });
+    }
+  }, [activeTab]);
+
+  useEffect(() => {
     if (questionsContainerRef.current) {
       questionsContainerRef.current.scrollTo({ top: questionsContainerRef.current.scrollHeight, behavior: "smooth" });
     }
@@ -430,7 +436,7 @@ export default function App() {
       <div className="min-h-screen bg-[#4338CA] flex items-center justify-center p-4 selection:bg-pink-500">
         <div className="bg-white border-4 border-black p-8 rounded-[32px] shadow-[8px_8px_0px_0px_rgba(0,0,0,1)] text-black max-w-md w-full text-center">
           <div className="bg-yellow-400 w-16 h-16 mx-auto rounded-2xl border-2 border-black shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] flex items-center justify-center mb-6">
-            <Gamepad2 className="w-8 h-8 text-black" />
+            <UserSearch className="w-8 h-8 text-black" />
           </div>
           <h1 className="text-4xl font-black tracking-tight italic uppercase mb-2">{t.whosDat}</h1>
           <p className="font-bold text-zinc-600 mb-8">{t.loginInstruction}</p>
@@ -458,7 +464,7 @@ export default function App() {
         <div className="max-w-7xl mx-auto flex flex-col md:flex-row items-center justify-between gap-4">
           <div className="flex items-center gap-4">
             <div className="bg-yellow-400 p-3 rounded-2xl border-2 border-black shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] text-black">
-              <Gamepad2 className="w-8 h-8 text-black" />
+              <UserSearch className="w-8 h-8 text-black" />
             </div>
             <div>
               <h2 className="text-4xl font-black tracking-tight italic uppercase text-white flex items-center gap-2">
@@ -1065,13 +1071,13 @@ export default function App() {
                   onClick={() => setActiveTab('board')}
                   className={`flex-1 py-3 text-sm font-black uppercase tracking-widest ${activeTab === 'board' ? 'bg-yellow-400 text-black border-b-4 border-black' : 'bg-zinc-100 text-zinc-500 hover:bg-zinc-200'} transition`}
                 >
-                  Scoreboard
+                  {t.scoreboard}
                 </button>
                 <button 
                   onClick={() => setActiveTab('history')}
                   className={`flex-1 py-3 text-sm font-black uppercase tracking-widest border-l-4 border-black ${activeTab === 'history' ? 'bg-pink-500 text-white border-b-4 border-black' : 'bg-zinc-100 text-zinc-500 hover:bg-zinc-200'} transition`}
                 >
-                  History
+                  {t.history}
                 </button>
               </div>
 
@@ -1131,7 +1137,7 @@ export default function App() {
                           <div key={ev.id} className={`p-3 rounded-xl border-2 flex items-start gap-3 ${cardStyle} shadow-[2px_2px_0px_0px_rgba(0,0,0,0.05)]`}>
                             <div className="mt-0.5">{icon}</div>
                             <div className="flex-1">
-                              <p className="font-bold text-sm leading-snug">{ev.messageKey ? t(ev.messageKey, lang, ev.messageArgs) : ev.message}</p>
+                              <p className="font-bold text-sm leading-snug">{ev.messageKey ? translate(ev.messageKey, lang, ev.messageArgs) : ev.message}</p>
                               <span className="text-[10px] font-black uppercase opacity-50 mt-1 block tracking-wider">
                                 {new Date(ev.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                               </span>

@@ -288,7 +288,7 @@ export async function submitGuess(roomId: string, guesser: Player, target: Playe
       hasAskedThisRound: true
     });
     
-    await addGameEvent(roomId, "guess_correct", "guessCorrect", lang, { guesserName: guesser.name, targetName: target.name }, guesser.name);
+    await addGameEvent(roomId, "guess_correct", "guessCorrect", lang, { guesserName: guesser.name, targetName: target.name, explanation: data.explanation }, guesser.name);
 
     const activeTargets = allPlayers.filter(p => p.state === "ACTIVE" && p.id !== target.id);
     if (activeTargets.length === 0) {
@@ -322,7 +322,7 @@ export async function submitGuess(roomId: string, guesser: Player, target: Playe
       hasGuessedThisRound: true,
       hasAskedThisRound: true 
     });
-    await addGameEvent(roomId, "guess_wrong", "guessWrong", lang, { guesserName: guesser.name, guess, targetName: target.name });
+    await addGameEvent(roomId, "guess_wrong", "guessWrong", lang, { guesserName: guesser.name, guess, targetName: target.name, explanation: data.explanation });
     
     // Asker guessed wrong, turn passes to next person
     await advanceTurn(roomId, room, allPlayers, lang, false);

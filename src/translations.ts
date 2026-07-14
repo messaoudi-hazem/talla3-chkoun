@@ -1,7 +1,7 @@
 const translations = {
   en: {
     whosDat: "WHOSDAT?",
-    gameDescription: "Multiplayer Character Guessing Game",
+    gameDescription: "MULTIPLAYER GUESSING GAME",
     disconnect: "Disconnect",
     logout: "Logout",
     liveAs: "LIVE AS:",
@@ -61,9 +61,9 @@ const translations = {
     questionAsked: "❓ {askerName} asked {targetName}: \"{questionText}\"",
     answerGiven: "📢 {targetName} answered {askerName}'s question with: \"{answer}\"",
     targetShifted: "🔄 Target shifts to {targetName}'s secret word! {askerName} starts the questioning.",
-    guessCorrect: "🎉 {guesserName} discovered {targetName}'s word!",
+    guessCorrect: "🎉 {guesserName} discovered {targetName}'s word! {explanation}",
     gameOver: "🏆 Game Over!",
-    guessWrong: "❌ {guesserName} guessed \"{guess}\" for {targetName}'s word, but it's WRONG.",
+    guessWrong: "❌ {guesserName} guessed \"{guess}\" for {targetName}'s word, but it's WRONG. {explanation}",
     turnPassed: "⏭️ {askerName} passed their guess.",
     roomReset: "🔄 Room has been reset. Back to lobby!",
     // UI
@@ -81,7 +81,7 @@ const translations = {
   },
   ar: {
     whosDat: "شكون هذا؟",
-    gameDescription: "لعبة تخمين الشخصيات الجماعية",
+    gameDescription: "MULTIPLAYER GUESSING GAME",
     disconnect: "قطع الاتصال",
     logout: "تسجيل الخروج",
     liveAs: "متصل باسم:",
@@ -141,9 +141,9 @@ const translations = {
     questionAsked: "❓ سأل {askerName} اللاعب {targetName}: \"{questionText}\"",
     answerGiven: "📢 أجاب {targetName} على سؤال {askerName} بـ: \"{answer}\"",
     targetShifted: "🔄 تحول الهدف إلى شخصية {targetName}! {askerName} يبدأ السؤال.",
-    guessCorrect: "🎉 اكتشف {guesserName} شخصية {targetName}!",
+    guessCorrect: "🎉 اكتشف {guesserName} شخصية {targetName}! {explanation}",
     gameOver: "🏆 انتهت اللعبة!",
-    guessWrong: "❌ خمن {guesserName} \"{guess}\" لشخصية {targetName}، لكنه خطأ.",
+    guessWrong: "❌ خمن {guesserName} \"{guess}\" لشخصية {targetName}، لكنه خطأ. {explanation}",
     turnPassed: "⏭️ مرر {askerName} دوره.",
     roomReset: "🔄 تمت إعادة ضبط الغرفة. العودة إلى ساحة الانتظار!",
     // UI
