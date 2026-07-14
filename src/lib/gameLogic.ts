@@ -176,8 +176,8 @@ export async function advanceTurn(roomId: string, room: Room, allPlayers: Player
   const currentAskerIdx = turnOrder.indexOf(activeAskerPlayerId);
 
   // Determine if everyone else has had their turn for this target
-  const otherActivePlayers = latestPlayers.filter(p => p.id !== activeTargetPlayerId && p.state === "ACTIVE");
-  const allOtherPlayersFinished = otherActivePlayers.every(p => p.hasAskedThisRound && (p.hasGuessedThisRound || p.state === "COMPLETED"));
+  const investigators = latestPlayers.filter(p => p.id !== activeTargetPlayerId);
+  const allOtherPlayersFinished = investigators.every(p => p.hasAskedThisRound && p.hasGuessedThisRound);
 
   let nextTargetId = activeTargetPlayerId;
   let nextAskerId = activeAskerPlayerId;
@@ -204,7 +204,8 @@ export async function advanceTurn(roomId: string, room: Room, allPlayers: Player
     // Set first asker for the new target
     let nextAskerIdx = (nextTargetIdx + 1) % turnOrder.length;
     safeCounter = 0;
-    while (turnOrder[nextAskerIdx] === nextTargetId || latestPlayers.find(p => p.id === turnOrder[nextAskerIdx])?.state === "COMPLETED") {
+    // Asker can be COMPLETED, but cannot be the current target
+    while (turnOrder[nextAskerIdx] === nextTargetId) {
       nextAskerIdx = (nextAskerIdx + 1) % turnOrder.length;
       safeCounter++;
       if (safeCounter > turnOrder.length) break;
@@ -218,7 +219,8 @@ export async function advanceTurn(roomId: string, room: Room, allPlayers: Player
     // Just shift the asker, target stays the same
     let nextAskerIdx = (currentAskerIdx + 1) % turnOrder.length;
     let safeCounter = 0;
-    while (turnOrder[nextAskerIdx] === nextTargetId || latestPlayers.find(p => p.id === turnOrder[nextAskerIdx])?.state === "COMPLETED") {
+    // Asker can be COMPLETED, but cannot be the current target
+    while (turnOrder[nextAskerIdx] === nextTargetId) {
       nextAskerIdx = (nextAskerIdx + 1) % turnOrder.length;
       safeCounter++;
       if (safeCounter > turnOrder.length) break;
