@@ -176,8 +176,8 @@ export async function advanceTurn(roomId: string, room: Room, allPlayers: Player
   const currentAskerIdx = turnOrder.indexOf(activeAskerPlayerId);
 
   // Determine if everyone else has had their turn for this target
-  const investigators = latestPlayers.filter(p => p.id !== activeTargetPlayerId);
-  const allOtherPlayersFinished = investigators.every(p => p.hasAskedThisRound && p.hasGuessedThisRound);
+  const investigators = latestPlayers.filter(p => p.id !== activeTargetPlayerId && (p.state === "ACTIVE" || p.state === "COMPLETED"));
+  const allOtherPlayersFinished = investigators.length > 0 && investigators.every(p => p.hasAskedThisRound && p.hasGuessedThisRound);
 
   let nextTargetId = activeTargetPlayerId;
   let nextAskerId = activeAskerPlayerId;
@@ -186,11 +186,39 @@ export async function advanceTurn(roomId: string, room: Room, allPlayers: Player
     // Target shifts to the next player who is NOT completed
     let nextTargetIdx = (currentTargetIdx + 1) % turnOrder.length;
     let safeCounter = 0;
-    while (latestPlayers.find(p => p.id === turnOrder[nextTargetIdx])?.state === "COMPLETED") {
+    let foundNext = false;
+    
+    while (safeCounter < turnOrder.length) {
+      const candidate = latestPlayers.find(p => p.id === turnOrder[nextTargetIdx]);
+      if (candidate && candidate.state !== "COMPLETED") {
+        foundNext = true;
+        break;
+      }
       nextTargetIdx = (nextTargetIdx + 1) % turnOrder.length;
       safeCounter++;
-      if (safeCounter > turnOrder.length) break;
     }
+
+    if (!foundNext) {
+      // Game Over: No more active targets left
+      let highestScore = -1;
+      let winnerId = null;
+      for (const p of latestPlayers) {
+        if (p.score > highestScore) {
+          highestScore = p.score;
+          winnerId = p.id;
+        }
+      }
+
+      await updateDoc(doc(db, "rooms", roomId), {
+        status: "ended",
+        activeTargetPlayerId: null,
+        activeAskerPlayerId: null,
+        winnerId
+      });
+      await addGameEvent(roomId, "complete", "gameOver", lang);
+      return;
+    }
+
     nextTargetId = turnOrder[nextTargetIdx];
 
     // Reset all players' guess and ask states for the NEW target
@@ -254,7 +282,11 @@ export async function submitGuess(roomId: string, guesser: Player, target: Playe
 
   if (data.isMatch) {
     await updateDoc(doc(db, `rooms/${roomId}/players`, target.id), { state: "COMPLETED" });
-    await updateDoc(doc(db, `rooms/${roomId}/players`, guesser.id), { score: guesser.score + 10 });
+    await updateDoc(doc(db, `rooms/${roomId}/players`, guesser.id), { 
+      score: guesser.score + 10,
+      hasGuessedThisRound: true,
+      hasAskedThisRound: true
+    });
     
     await addGameEvent(roomId, "guess_correct", "guessCorrect", lang, { guesserName: guesser.name, targetName: target.name }, guesser.name);
 

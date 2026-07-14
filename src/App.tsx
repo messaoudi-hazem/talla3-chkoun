@@ -201,6 +201,8 @@ export default function App() {
         eventTime = (lastEvent.timestamp as any).seconds * 1000;
       } else if (lastEvent.timestamp instanceof Date) {
         eventTime = lastEvent.timestamp.getTime();
+      } else if (typeof lastEvent.timestamp === 'string') {
+        eventTime = new Date(lastEvent.timestamp).getTime();
       }
     }
     
