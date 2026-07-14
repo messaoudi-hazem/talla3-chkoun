@@ -35,6 +35,27 @@ export default function App() {
   const [customRoomCode, setCustomRoomCode] = useState<string>("");
   const [showQR, setShowQR] = useState(false);
 
+  const getRoomJoinUrl = () => {
+    let origin = "https://ais-dev-oxicsvn4rhdj74o4qoli4h-302185868240.europe-west2.run.app";
+    if (typeof window !== "undefined" && window.location) {
+      const currentOrigin = window.location.origin;
+      if (currentOrigin && currentOrigin !== "null" && currentOrigin !== "about:") {
+        origin = currentOrigin;
+      } else {
+        const href = window.location.href;
+        if (href && href !== "about:srcdoc" && href !== "about:blank") {
+          try {
+            const urlObj = new URL(href);
+            if (urlObj.origin && urlObj.origin !== "null") {
+              origin = urlObj.origin;
+            }
+          } catch (e) {}
+        }
+      }
+    }
+    return `${origin}/?room=${room?.id || ""}`;
+  };
+
   const historyContainerRef = useRef<HTMLDivElement>(null);
   const questionsContainerRef = useRef<HTMLDivElement>(null);
 
@@ -402,7 +423,7 @@ export default function App() {
               >
                 <h3 className="text-3xl font-black text-black uppercase italic text-center">Scan to Join</h3>
                 <div className="bg-white p-4 border-4 border-black rounded-xl">
-                  <QRCodeSVG value={`${window.location.origin}/?room=${room.id}`} size={200} />
+                  <QRCodeSVG value={getRoomJoinUrl()} size={200} />
                 </div>
                 <div className="bg-yellow-400 text-black font-black text-2xl tracking-widest px-6 py-2 rounded-xl border-2 border-black">
                   {room.id}

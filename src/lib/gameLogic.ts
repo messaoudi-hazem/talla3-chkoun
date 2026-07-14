@@ -160,37 +160,20 @@ export async function advanceTurn(roomId: string, room: Room, allPlayers: Player
   if (!activeTargetPlayerId || !activeAskerPlayerId) return;
 
   const currentTargetIdx = turnOrder.indexOf(activeTargetPlayerId);
-  let nextAskerIdx = (turnOrder.indexOf(activeAskerPlayerId) + 1) % turnOrder.length;
-  let nextTargetIdx = currentTargetIdx;
+  const currentAskerIdx = turnOrder.indexOf(activeAskerPlayerId);
 
-  if (targetGuessedOut) {
-    // If the target is out, we just move to the next available target
-    nextTargetIdx = (currentTargetIdx + 1) % turnOrder.length;
-    nextAskerIdx = (nextTargetIdx + 1) % turnOrder.length;
-  } else if (nextAskerIdx === currentTargetIdx) {
-    // Everyone has asked the target, shift target
-    nextTargetIdx = (currentTargetIdx + 1) % turnOrder.length;
-    nextAskerIdx = (nextTargetIdx + 1) % turnOrder.length;
-  }
-
-  // Need to make sure target is not COMPLETED
+  // Target ALWAYS shifts to the next player who is NOT completed
+  let nextTargetIdx = (currentTargetIdx + 1) % turnOrder.length;
   let safeCounter = 0;
-  let targetChanged = false;
-  if (nextTargetIdx !== currentTargetIdx) {
-    targetChanged = true;
-  }
-  
   while (allPlayers.find(p => p.id === turnOrder[nextTargetIdx])?.state === "COMPLETED") {
     nextTargetIdx = (nextTargetIdx + 1) % turnOrder.length;
-    targetChanged = true;
     safeCounter++;
     if (safeCounter > turnOrder.length) break; // Game over essentially
   }
-  
-  if (targetChanged) {
-    nextAskerIdx = (nextTargetIdx + 1) % turnOrder.length;
-  }
 
+  // Asker shifts to the next player after the current asker
+  let nextAskerIdx = (currentAskerIdx + 1) % turnOrder.length;
+  
   safeCounter = 0;
   // Asker can't be the same as target
   while (nextAskerIdx === nextTargetIdx) {
@@ -210,37 +193,22 @@ export async function advanceTurn(roomId: string, room: Room, allPlayers: Player
   const nextTargetPlayer = allPlayers.find(p => p.id === newTargetId);
   const nextAskerPlayer = allPlayers.find(p => p.id === newAskerId);
 
-  if (newTargetId !== activeTargetPlayerId) {
-    // Reset all players' guess and ask states for the new target
-    for (const p of allPlayers) {
-      await updateDoc(doc(db, `rooms/${roomId}/players`, p.id), { 
-        hasGuessedThisRound: false,
-        hasAskedThisRound: false
-      });
-    }
-    await addGameEvent(roomId, "system", `🔄 Target shifts to ${nextTargetPlayer?.name}'s secret word! ${nextAskerPlayer?.name} starts the questioning.`);
-  } else {
-    // Same target, new asker. Ensure the new asker can ask and guess.
-    await updateDoc(doc(db, `rooms/${roomId}/players`, newAskerId), { 
-      hasAskedThisRound: false,
-      hasGuessedThisRound: false
+  // Reset all players' guess and ask states for the new turn/target
+  for (const p of allPlayers) {
+    await updateDoc(doc(db, `rooms/${roomId}/players`, p.id), { 
+      hasGuessedThisRound: false,
+      hasAskedThisRound: false
     });
-    await addGameEvent(roomId, "system", `👉 It's now ${nextAskerPlayer?.name}'s turn to ask ${nextTargetPlayer?.name}.`);
   }
+  await addGameEvent(roomId, "system", `🔄 Target shifts to ${nextTargetPlayer?.name}'s secret word! ${nextAskerPlayer?.name} starts the questioning.`);
 }
 
 // Submit a guess
 export async function submitGuess(roomId: string, guesser: Player, target: Player, guess: string, allPlayers: Player[], room: Room) {
   if (guesser.hasGuessedThisRound) throw new Error("You already made a guess!");
 
-  // Safe and robust URL construction to prevent DOMException: "The string did not match the expected pattern" in iframe preview sandboxes
-  let url = "/api/gemini/evaluate-guess";
-  if (typeof window !== "undefined" && window.location) {
-    const { protocol, host } = window.location;
-    if (protocol && host && protocol !== "about:") {
-      url = `${protocol}//${host}/api/gemini/evaluate-guess`;
-    }
-  }
+  // Safe and clean relative URL fetch
+  const url = "/api/gemini/evaluate-guess";
 
   const res = await fetch(url, {
     method: "POST",
