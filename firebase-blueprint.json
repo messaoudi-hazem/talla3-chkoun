@@ -9,6 +9,7 @@
         "status": { "type": "string", "enum": ["lobby", "playing", "finished"] },
         "activeTargetPlayerId": { "type": "string" },
         "winnerId": { "type": "string" },
+        "winners": { "type": "array", "items": { "type": "string" } },
         "category": { "type": "string" },
         "leaderId": { "type": "string" },
         "createdAt": { "type": "string" }

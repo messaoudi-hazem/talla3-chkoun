@@ -37,61 +37,64 @@ export default function App() {
   const lossAudioRef = useRef<HTMLAudioElement>(null);
 
   useEffect(() => {
+    const audios = [audioRef.current, clickAudioRef.current, winAudioRef.current, lossAudioRef.current];
+    
     const unlockAudio = () => {
-      // Mobile browsers require audio to be played within a user interaction
-      [audioRef, clickAudioRef, winAudioRef, lossAudioRef].forEach(ref => {
-        if (ref.current) {
-          const p = ref.current.play();
+      audios.forEach(audio => {
+        if (audio) {
+          const p = audio.play();
           if (p !== undefined) {
             p.then(() => {
-              ref.current?.pause();
-              if (ref.current) ref.current.currentTime = 0;
+              audio.pause();
+              audio.currentTime = 0;
             }).catch(() => {});
           }
         }
       });
     };
 
-    const playMusic = () => {
+    const handleFirstInteraction = () => {
       unlockAudio();
       if (audioRef.current && !isMuted && isPlayingMusic) {
-        audioRef.current.play().catch(e => console.log("Auto-play prevented", e));
-        removeInteractionListeners();
+        audioRef.current.play().catch(e => console.log("Music play failed", e));
       }
+      document.removeEventListener('click', handleFirstInteraction);
+      document.removeEventListener('touchstart', handleFirstInteraction);
+      document.removeEventListener('keydown', handleFirstInteraction);
     };
 
-    const removeInteractionListeners = () => {
-      document.removeEventListener('click', playMusic);
-      document.removeEventListener('mousedown', playMusic);
-      document.removeEventListener('touchstart', playMusic);
-      document.removeEventListener('keydown', playMusic);
-    };
+    document.addEventListener('click', handleFirstInteraction);
+    document.addEventListener('touchstart', handleFirstInteraction);
+    document.addEventListener('keydown', handleFirstInteraction);
 
-    document.addEventListener('click', playMusic);
-    document.addEventListener('mousedown', playMusic);
-    document.addEventListener('touchstart', playMusic);
-    document.addEventListener('keydown', playMusic);
-
-    // Global click sound for all buttons - use mousedown for better response
-    const handleGlobalMouseDown = (e: MouseEvent | TouchEvent) => {
+    // Global click sound for all buttons
+    const handleGlobalClick = (e: MouseEvent | TouchEvent) => {
       const target = e.target as HTMLElement;
       if (target.closest('button') && !isMuted && clickAudioRef.current) {
         clickAudioRef.current.currentTime = 0;
         clickAudioRef.current.play().catch(() => {});
       }
     };
-    document.addEventListener('mousedown', handleGlobalMouseDown);
-    document.addEventListener('touchstart', handleGlobalMouseDown);
-
-    if (isPlayingMusic && audioRef.current && !isMuted) {
-      audioRef.current.play().catch(e => console.log("Auto-play prevented", e));
-    }
+    document.addEventListener('mousedown', handleGlobalClick);
+    document.addEventListener('touchstart', handleGlobalClick);
 
     return () => {
-      removeInteractionListeners();
-      document.removeEventListener('mousedown', handleGlobalMouseDown);
-      document.removeEventListener('touchstart', handleGlobalMouseDown);
+      document.removeEventListener('click', handleFirstInteraction);
+      document.removeEventListener('touchstart', handleFirstInteraction);
+      document.removeEventListener('keydown', handleFirstInteraction);
+      document.removeEventListener('mousedown', handleGlobalClick);
+      document.removeEventListener('touchstart', handleGlobalClick);
     };
+  }, [isMuted, isPlayingMusic]);
+
+  useEffect(() => {
+    if (audioRef.current) {
+      if (isMuted || !isPlayingMusic) {
+        audioRef.current.pause();
+      } else {
+        audioRef.current.play().catch(() => {});
+      }
+    }
   }, [isMuted, isPlayingMusic]);
   const [secretWordInput, setSecretWordInput] = useState<string>("");
   const [questionInput, setQuestionInput] = useState<string>("");
@@ -636,10 +639,10 @@ export default function App() {
           )}
         </AnimatePresence>
 
-        <audio ref={audioRef} loop src="https://www.dropbox.com/scl/fi/6qg1b3dye88prbuqpexia/Guess-Again.mp3?rlkey=snmgxok4w3gawmyo8nt31f9xv&st=4d1jpjiy&dl=1" />
-        <audio ref={clickAudioRef} src="https://www.dropbox.com/scl/fi/w9hzmfmmdwadbseiiv615/click.mp3?rlkey=2pi0d2k15v4ti5ip0qup8wtg6&st=k45vzg6g&dl=1" />
-        <audio ref={winAudioRef} src="https://www.dropbox.com/scl/fi/aprrma19gawoaxyeaxhvc/win.mp3?rlkey=211q81do5jo3vj0il3eppeeeq&st=gdtfinbv&dl=1" />
-        <audio ref={lossAudioRef} src="https://www.dropbox.com/scl/fi/jh9mjaxxiwfzxet3dzze4/loss.mp3?rlkey=19ay9v9bagii47pu2bi2x8suq&st=c8n2vobh&dl=1" />
+        <audio ref={audioRef} loop preload="auto" src="https://www.dropbox.com/scl/fi/6qg1b3dye88prbuqpexia/Guess-Again.mp3?rlkey=snmgxok4w3gawmyo8nt31f9xv&st=4d1jpjiy&raw=1" />
+        <audio ref={clickAudioRef} preload="auto" src="https://www.dropbox.com/scl/fi/w9hzmfmmdwadbseiiv615/click.mp3?rlkey=2pi0d2k15v4ti5ip0qup8wtg6&st=k45vzg6g&raw=1" />
+        <audio ref={winAudioRef} preload="auto" src="https://www.dropbox.com/scl/fi/aprrma19gawoaxyeaxhvc/win.mp3?rlkey=211q81do5jo3vj0il3eppeeeq&st=gdtfinbv&raw=1" />
+        <audio ref={lossAudioRef} preload="auto" src="https://www.dropbox.com/scl/fi/jh9mjaxxiwfzxet3dzze4/loss.mp3?rlkey=19ay9v9bagii47pu2bi2x8suq&st=c8n2vobh&raw=1" />
 
         {/* LOBBY / JOIN ROOM SCREEN */}
         {!room ? (
@@ -824,17 +827,27 @@ export default function App() {
             
             <div className="lg:col-span-2 flex flex-col gap-6 h-full">
               
-              {room.status === "ended" && room.winnerId ? (
+              {room.status === "ended" && (room.winnerId || (room.winners && room.winners.length > 0)) ? (
                 <motion.div 
                   initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }}
                   className="bg-yellow-400 border-4 border-black rounded-[24px] p-8 shadow-[8px_8px_0px_0px_rgba(0,0,0,1)] text-center text-black flex flex-col items-center relative overflow-hidden"
                 >
                   <Trophy className="w-20 h-20 mb-4 text-black" />
                   <h2 className="text-5xl font-black uppercase italic tracking-tight mb-2">{t.gameOver}</h2>
-                  <p className="text-xl font-bold">
-                    The winner is <span className="bg-white px-3 py-1 border-2 border-black rounded-lg">{players.find(p=>p.id === room.winnerId)?.name}</span> 
-                    with <span className="font-black">{players.find(p=>p.id === room.winnerId)?.score} points</span>!
-                  </p>
+                  
+                  {(() => {
+                    const winnerIds = room.winners || (room.winnerId ? [room.winnerId] : []);
+                    const winnerNames = winnerIds.map(id => players.find(p => p.id === id)?.name).filter(Boolean).join(" & ");
+                    const winnerScore = players.find(p => winnerIds.includes(p.id))?.score || 0;
+                    
+                    return (
+                      <p className="text-xl font-bold">
+                        {winnerIds.length > 1 ? "The winners are " : "The winner is "} 
+                        <span className="bg-white px-3 py-1 border-2 border-black rounded-lg">{winnerNames}</span> 
+                        with <span className="font-black">{winnerScore} points</span>!
+                      </p>
+                    );
+                  })()}
                   
                   {room.leaderId === user.uid && (
                     <button 

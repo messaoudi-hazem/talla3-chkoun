@@ -37,6 +37,7 @@ export interface Room {
   activeAskerPlayerId: string | null;
   turnOrder: string[];
   winnerId: string | null;
+  winners?: string[];
   category: string;
   leaderId: string; // UID of the room creator
   createdAt: string;

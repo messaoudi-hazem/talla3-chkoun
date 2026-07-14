@@ -201,19 +201,19 @@ export async function advanceTurn(roomId: string, room: Room, allPlayers: Player
     if (!foundNext) {
       // Game Over: No more active targets left
       let highestScore = -1;
-      let winnerId = null;
       for (const p of latestPlayers) {
         if (p.score > highestScore) {
           highestScore = p.score;
-          winnerId = p.id;
         }
       }
+      
+      const winners = latestPlayers.filter(p => p.score === highestScore).map(p => p.id);
 
       await updateDoc(doc(db, "rooms", roomId), {
         status: "ended",
         activeTargetPlayerId: null,
         activeAskerPlayerId: null,
-        winnerId
+        winners: winners
       });
       await addGameEvent(roomId, "complete", "gameOver", lang);
       return;
