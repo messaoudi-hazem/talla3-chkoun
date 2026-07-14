@@ -207,8 +207,26 @@ export async function advanceTurn(roomId: string, room: Room, allPlayers: Player
 export async function submitGuess(roomId: string, guesser: Player, target: Player, guess: string, allPlayers: Player[], room: Room) {
   if (guesser.hasGuessedThisRound) throw new Error("You already made a guess!");
 
-  // Safe and clean relative URL fetch
-  const url = "/api/gemini/evaluate-guess";
+  // Determine the correct base origin robustly for iframe sandboxes
+  let origin = "https://ais-dev-oxicsvn4rhdj74o4qoli4h-302185868240.europe-west2.run.app";
+  if (typeof window !== "undefined" && window.location) {
+    const currentOrigin = window.location.origin;
+    if (currentOrigin && currentOrigin !== "null" && currentOrigin !== "about:") {
+      origin = currentOrigin;
+    } else {
+      const href = window.location.href;
+      if (href && href !== "about:srcdoc" && href !== "about:blank") {
+        try {
+          const urlObj = new URL(href);
+          if (urlObj.origin && urlObj.origin !== "null") {
+            origin = urlObj.origin;
+          }
+        } catch (e) {}
+      }
+    }
+  }
+
+  const url = `${origin}/api/gemini/evaluate-guess`;
 
   const res = await fetch(url, {
     method: "POST",
