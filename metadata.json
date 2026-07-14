@@ -1,5 +1,5 @@
 {
-  "name": "Tunisian Character Guessing Game",
+  "name": "Multiplayer Guessing Game",
   "description": "A multiplayer game where players guess each other's secret characters with AI-powered semantic matching.",
   "requestFramePermissions": [],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]

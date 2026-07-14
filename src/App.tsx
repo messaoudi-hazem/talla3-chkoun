@@ -293,7 +293,7 @@ export default function App() {
 
   const handleSetSecretWord = async () => {
     if (!secretWordInput || secretWordInput.trim() === "") {
-      setError("Please enter a character name.");
+      setError("Please enter the word.");
       return;
     }
     setLoading(true);
@@ -469,6 +469,40 @@ export default function App() {
           </div>
 
           <div className="flex flex-wrap items-center gap-3">
+            {room && (
+              <button 
+                onClick={() => setShowQR(true)}
+                className="bg-pink-500 px-5 py-2 rounded-full border-2 border-black shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] font-bold text-white text-xs flex items-center gap-2 hover:bg-pink-400 active:translate-y-1 active:shadow-[1px_1px_0px_0px_rgba(0,0,0,1)] transition-all"
+              >
+                <QrCode className="w-4 h-4" /> ROOM: <span className="font-mono font-black">{room.id}</span>
+              </button>
+            )}
+            
+            {room && (
+              <button 
+                onClick={handleDisconnect}
+                className="bg-rose-500 px-5 py-2 rounded-full border-2 border-black shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] font-bold text-white text-xs flex items-center gap-2 hover:bg-rose-400 active:translate-y-1 active:shadow-[1px_1px_0px_0px_rgba(0,0,0,1)] transition-all"
+              >
+                <WifiOff className="w-4 h-4" /> {t.disconnect}
+              </button>
+            )}
+            
+            <div className="bg-emerald-400 px-5 py-2 rounded-full border-2 border-black shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] text-black font-bold text-xs flex items-center gap-2">
+              <div className="w-2.5 h-2.5 bg-black rounded-full animate-ping" />
+              <span><strong className="font-black">{user.displayName?.toUpperCase()}</strong></span>
+            </div>
+            
+            {room && room.leaderId === user.uid && (
+              <button 
+                onClick={handleResetGame}
+                disabled={loading}
+                className="bg-yellow-400 hover:bg-yellow-300 text-black p-2.5 rounded-full border-2 border-black shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] transition active:scale-90"
+                title="Reset Game State"
+              >
+                <RotateCcw className="w-4 h-4 text-black stroke-[3px]" />
+              </button>
+            )}
+
             <div className="relative">
               <button
                 onClick={() => setIsOptionsOpen(!isOptionsOpen)}
@@ -523,39 +557,6 @@ export default function App() {
                 </div>
               )}
             </div>
-            {room && (
-              <button 
-                onClick={() => setShowQR(true)}
-                className="bg-pink-500 px-5 py-2 rounded-full border-2 border-black shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] font-bold text-white text-xs flex items-center gap-2 hover:bg-pink-400 active:translate-y-1 active:shadow-[1px_1px_0px_0px_rgba(0,0,0,1)] transition-all"
-              >
-                <QrCode className="w-4 h-4" /> ROOM: <span className="font-mono font-black">{room.id}</span>
-              </button>
-            )}
-            
-            {room && (
-              <button 
-                onClick={handleDisconnect}
-                className="bg-rose-500 px-5 py-2 rounded-full border-2 border-black shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] font-bold text-white text-xs flex items-center gap-2 hover:bg-rose-400 active:translate-y-1 active:shadow-[1px_1px_0px_0px_rgba(0,0,0,1)] transition-all"
-              >
-                <WifiOff className="w-4 h-4" /> {t.disconnect}
-              </button>
-            )}
-            
-            <div className="bg-emerald-400 px-5 py-2 rounded-full border-2 border-black shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] text-black font-bold text-xs flex items-center gap-2">
-              <div className="w-2.5 h-2.5 bg-black rounded-full animate-ping" />
-              <span><strong className="font-black">{user.displayName?.toUpperCase()}</strong></span>
-            </div>
-            
-            {room && room.leaderId === user.uid && (
-              <button 
-                onClick={handleResetGame}
-                disabled={loading}
-                className="bg-yellow-400 hover:bg-yellow-300 text-black p-2.5 rounded-full border-2 border-black shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] transition active:scale-90"
-                title="Reset Game State"
-              >
-                <RotateCcw className="w-4 h-4 text-black stroke-[3px]" />
-              </button>
-            )}
           </div>
         </div>
       </header>
@@ -673,6 +674,17 @@ export default function App() {
                   
                   <div className="mb-4">
                     <label className="block text-xs font-black uppercase text-zinc-500 mb-2">{t.category}</label>
+                    <div className="flex flex-wrap gap-2 mb-3">
+                      {['Characters', 'Animals', 'Movies', 'Food', 'Places'].map(cat => (
+                        <button
+                          key={cat}
+                          onClick={() => setCategoryInput(cat)}
+                          className={`text-[10px] font-black px-3 py-1.5 rounded-lg border-2 border-black shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] transition-all active:translate-y-0.5 active:shadow-[1px_1px_0px_0px_rgba(0,0,0,1)] ${categoryInput === cat ? 'bg-yellow-400 text-black' : 'bg-white text-zinc-600 hover:bg-zinc-50'}`}
+                        >
+                          {cat.toUpperCase()}
+                        </button>
+                      ))}
+                    </div>
                     <input
                       type="text"
                       placeholder={t.categoryPlaceholder}
@@ -813,7 +825,7 @@ export default function App() {
                     </button>
                     {!players.every(p => p.secretWord) && (
                       <p className="text-xs text-rose-500 font-bold mt-3 text-center bg-rose-50 p-2 rounded-lg border border-rose-200">
-                        All players must submit a character before starting.
+                        All players must submit a word before starting.
                       </p>
                     )}
                   </div>
