@@ -38,7 +38,7 @@ app.post("/api/gemini/evaluate-guess", async (req, res) => {
   }
 
   // 3. Gemini AI Matching
-  const apiKey = process.env.GEMINI_API_KEY;
+  const apiKey = process.env.GEMINI;
   if (!apiKey || apiKey === "MY_GEMINI_API_KEY") {
     console.log("GEMINI_API_KEY is not configured or placeholder. Skipping AI semantic match.");
     return res.json({ isMatch: false, explanation: "Incorrect guess (local validation)" });
