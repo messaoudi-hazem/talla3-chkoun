@@ -166,48 +166,73 @@ export async function advanceTurn(roomId: string, room: Room, allPlayers: Player
   const { turnOrder, activeTargetPlayerId, activeAskerPlayerId } = room;
   if (!activeTargetPlayerId || !activeAskerPlayerId) return;
 
+  // Fetch fresh players to ensure we have the latest hasAsked/hasGuessed states
+  const playersRef = collection(db, `rooms/${roomId}/players`);
+  const playersSnap = await getDocs(playersRef);
+  const latestPlayers: Player[] = [];
+  playersSnap.forEach(d => latestPlayers.push(d.data() as Player));
+
   const currentTargetIdx = turnOrder.indexOf(activeTargetPlayerId);
   const currentAskerIdx = turnOrder.indexOf(activeAskerPlayerId);
 
-  // Target ALWAYS shifts to the next player who is NOT completed
-  let nextTargetIdx = (currentTargetIdx + 1) % turnOrder.length;
-  let safeCounter = 0;
-  while (allPlayers.find(p => p.id === turnOrder[nextTargetIdx])?.state === "COMPLETED") {
-    nextTargetIdx = (nextTargetIdx + 1) % turnOrder.length;
-    safeCounter++;
-    if (safeCounter > turnOrder.length) break; // Game over essentially
-  }
+  // Determine if everyone else has had their turn for this target
+  const otherActivePlayers = latestPlayers.filter(p => p.id !== activeTargetPlayerId && p.state === "ACTIVE");
+  const allOtherPlayersFinished = otherActivePlayers.every(p => p.hasAskedThisRound && (p.hasGuessedThisRound || p.state === "COMPLETED"));
 
-  // Asker shifts to the next player after the current asker
-  let nextAskerIdx = (currentAskerIdx + 1) % turnOrder.length;
-  
-  safeCounter = 0;
-  // Asker can't be the same as target
-  while (nextAskerIdx === nextTargetIdx) {
-    nextAskerIdx = (nextAskerIdx + 1) % turnOrder.length;
-    safeCounter++;
-    if (safeCounter > turnOrder.length) break;
-  }
+  let nextTargetId = activeTargetPlayerId;
+  let nextAskerId = activeAskerPlayerId;
 
-  const newTargetId = turnOrder[nextTargetIdx];
-  const newAskerId = turnOrder[nextAskerIdx];
+  if (targetGuessedOut || allOtherPlayersFinished) {
+    // Target shifts to the next player who is NOT completed
+    let nextTargetIdx = (currentTargetIdx + 1) % turnOrder.length;
+    let safeCounter = 0;
+    while (latestPlayers.find(p => p.id === turnOrder[nextTargetIdx])?.state === "COMPLETED") {
+      nextTargetIdx = (nextTargetIdx + 1) % turnOrder.length;
+      safeCounter++;
+      if (safeCounter > turnOrder.length) break;
+    }
+    nextTargetId = turnOrder[nextTargetIdx];
+
+    // Reset all players' guess and ask states for the NEW target
+    for (const p of latestPlayers) {
+      await updateDoc(doc(db, `rooms/${roomId}/players`, p.id), { 
+        hasGuessedThisRound: false,
+        hasAskedThisRound: false
+      });
+    }
+
+    // Set first asker for the new target
+    let nextAskerIdx = (nextTargetIdx + 1) % turnOrder.length;
+    safeCounter = 0;
+    while (turnOrder[nextAskerIdx] === nextTargetId || latestPlayers.find(p => p.id === turnOrder[nextAskerIdx])?.state === "COMPLETED") {
+      nextAskerIdx = (nextAskerIdx + 1) % turnOrder.length;
+      safeCounter++;
+      if (safeCounter > turnOrder.length) break;
+    }
+    nextAskerId = turnOrder[nextAskerIdx];
+
+    const nextTargetPlayer = latestPlayers.find(p => p.id === nextTargetId);
+    const nextAskerPlayer = latestPlayers.find(p => p.id === nextAskerId);
+    await addGameEvent(roomId, "system", "targetShifted", lang, { targetName: nextTargetPlayer?.name || "", askerName: nextAskerPlayer?.name || "" });
+  } else {
+    // Just shift the asker, target stays the same
+    let nextAskerIdx = (currentAskerIdx + 1) % turnOrder.length;
+    let safeCounter = 0;
+    while (turnOrder[nextAskerIdx] === nextTargetId || latestPlayers.find(p => p.id === turnOrder[nextAskerIdx])?.state === "COMPLETED") {
+      nextAskerIdx = (nextAskerIdx + 1) % turnOrder.length;
+      safeCounter++;
+      if (safeCounter > turnOrder.length) break;
+    }
+    nextAskerId = turnOrder[nextAskerIdx];
+    
+    const nextAskerPlayer = latestPlayers.find(p => p.id === nextAskerId);
+    await addGameEvent(roomId, "system", "turnPassed", lang, { askerName: nextAskerPlayer?.name || "" });
+  }
 
   await updateDoc(doc(db, "rooms", roomId), {
-    activeTargetPlayerId: newTargetId,
-    activeAskerPlayerId: newAskerId
+    activeTargetPlayerId: nextTargetId,
+    activeAskerPlayerId: nextAskerId
   });
-
-  const nextTargetPlayer = allPlayers.find(p => p.id === newTargetId);
-  const nextAskerPlayer = allPlayers.find(p => p.id === newAskerId);
-
-  // Reset all players' guess and ask states for the new turn/target
-  for (const p of allPlayers) {
-    await updateDoc(doc(db, `rooms/${roomId}/players`, p.id), { 
-      hasGuessedThisRound: false,
-      hasAskedThisRound: false
-    });
-  }
-  await addGameEvent(roomId, "system", "targetShifted", lang, { targetName: nextTargetPlayer?.name || "", askerName: nextAskerPlayer?.name || "" });
 }
 
 // Submit a guess
@@ -259,7 +284,10 @@ export async function submitGuess(roomId: string, guesser: Player, target: Playe
 
     return { correct: true, explanation: data.explanation };
   } else {
-    await updateDoc(doc(db, `rooms/${roomId}/players`, guesser.id), { hasGuessedThisRound: true });
+    await updateDoc(doc(db, `rooms/${roomId}/players`, guesser.id), { 
+      hasGuessedThisRound: true,
+      hasAskedThisRound: true 
+    });
     await addGameEvent(roomId, "guess_wrong", "guessWrong", lang, { guesserName: guesser.name, guess, targetName: target.name });
     
     // Asker guessed wrong, turn passes to next person
@@ -272,6 +300,12 @@ export async function submitGuess(roomId: string, guesser: Player, target: Playe
 // Pass Turn
 export async function passTurn(roomId: string, room: Room, allPlayers: Player[], lang: 'en' | 'ar') {
   const asker = allPlayers.find(p => p.id === room.activeAskerPlayerId);
+  if (asker) {
+    await updateDoc(doc(db, `rooms/${roomId}/players`, asker.id), { 
+      hasGuessedThisRound: true,
+      hasAskedThisRound: true 
+    });
+  }
   await addGameEvent(roomId, "system", "turnPassed", lang, { askerName: asker?.name || "" });
   await advanceTurn(roomId, room, allPlayers, lang, false);
 }

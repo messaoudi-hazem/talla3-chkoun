@@ -184,6 +184,13 @@ export default function App() {
 
   const [isLoggingIn, setIsLoggingIn] = useState(false);
 
+  const playClick = () => {
+    if (clickAudioRef.current && !isMuted) {
+      clickAudioRef.current.currentTime = 0;
+      clickAudioRef.current.play().catch(() => {});
+    }
+  };
+
   const handleLogin = async () => {
     if (isLoggingIn) return;
     setIsLoggingIn(true);
@@ -483,7 +490,7 @@ export default function App() {
             
             <div className="bg-emerald-400 px-5 py-2 rounded-full border-2 border-black shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] text-black font-bold text-xs flex items-center gap-2">
               <div className="w-2.5 h-2.5 bg-black rounded-full animate-ping" />
-              <span>{t.liveAs} <strong className="font-black">{user.displayName?.toUpperCase()}</strong></span>
+              <span><strong className="font-black">{user.displayName?.toUpperCase()}</strong></span>
             </div>
             
             {room && room.leaderId === user.uid && (
@@ -622,7 +629,7 @@ export default function App() {
                 </div>
                 
                 <button
-                  onClick={handleCreateRoom}
+                  onClick={() => { playClick(); handleCreateRoom(); }}
                   disabled={loading}
                   className="w-full bg-pink-500 text-white font-black py-3.5 px-4 rounded-xl border-2 border-black shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] hover:bg-pink-400 active:translate-x-[2px] active:translate-y-[2px] active:shadow-[1px_1px_0px_0px_rgba(0,0,0,1)] disabled:opacity-50 transition flex items-center justify-center gap-2 text-sm uppercase"
                 >
@@ -659,7 +666,7 @@ export default function App() {
                 </div>
                 
                 <button
-                  onClick={handleJoinRoom}
+                  onClick={() => { playClick(); handleJoinRoom(); }}
                   disabled={loading || !customRoomCode.trim()}
                   className="w-full mt-6 bg-indigo-600 text-white font-black py-3.5 px-4 rounded-xl border-2 border-black shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] hover:bg-indigo-500 active:translate-x-[2px] active:translate-y-[2px] active:shadow-[1px_1px_0px_0px_rgba(0,0,0,1)] disabled:opacity-50 transition flex items-center justify-center gap-2 text-sm uppercase"
                 >
