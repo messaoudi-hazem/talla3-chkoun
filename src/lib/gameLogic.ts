@@ -5,6 +5,12 @@ import {
 } from "firebase/firestore";
 import { Room, Player, Question, GameEvent } from "../types";
 
+// Leave room
+export async function leaveRoom(roomId: string, playerId: string) {
+  await deleteDoc(doc(db, `rooms/${roomId}/players`, playerId));
+  await addGameEvent(roomId, "leave", `🚪 A player has left the room.`);
+}
+
 // Generates a random room code
 export function generateId(): string {
   return Math.random().toString(36).substring(2, 9).toUpperCase();

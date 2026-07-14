@@ -16,6 +16,23 @@ function cleanString(str: any): string {
   return str.trim().toLowerCase().replace(/\s+/g, ' ');
 }
 
+function levenshteinDistance(a: string, b: string): number {
+  const track = Array(b.length + 1).fill(null).map(() => Array(a.length + 1).fill(null));
+  for (let i = 0; i <= a.length; i++) track[0][i] = i;
+  for (let j = 0; j <= b.length; j++) track[j][0] = j;
+  for (let j = 1; j <= b.length; j++) {
+    for (let i = 1; i <= a.length; i++) {
+      const indicator = a[i - 1] === b[j - 1] ? 0 : 1;
+      track[j][i] = Math.min(
+        track[j][i - 1] + 1,
+        track[j - 1][i] + 1,
+        track[j - 1][i - 1] + indicator
+      );
+    }
+  }
+  return track[b.length][a.length];
+}
+
 // Gemini evaluate guess proxy
 app.post("/api/gemini/evaluate-guess", async (req, res) => {
   try {
@@ -34,9 +51,11 @@ app.post("/api/gemini/evaluate-guess", async (req, res) => {
       return res.json({ isMatch: true, explanation: "Exact match" });
     }
 
-    // 2. Simple character-by-character similarity heuristic
-    if (cleanGuess.length >= 4 && (cleanTarget.includes(cleanGuess) || cleanGuess.includes(cleanTarget))) {
-      return res.json({ isMatch: true, explanation: "Sub-string matching" });
+    // 2. Fuzzy similarity (allow up to 30% difference)
+    const distance = levenshteinDistance(cleanTarget, cleanGuess);
+    const maxLength = Math.max(cleanTarget.length, cleanGuess.length);
+    if (maxLength > 0 && distance <= maxLength * 0.3) {
+      return res.json({ isMatch: true, explanation: "Close enough" });
     }
 
     // 3. Fallback: Not a match

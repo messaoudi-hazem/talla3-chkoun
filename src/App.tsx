@@ -288,6 +288,21 @@ export default function App() {
     }
   };
 
+  const handleDisconnect = async () => {
+    if (!user || !roomId) return;
+    setLoading(true);
+    try {
+      await gameLogic.leaveRoom(roomId, user.uid);
+      setRoomId("");
+      setRoom(null);
+      window.history.pushState({}, '', '/');
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   if (!user) {
     return (
       <div className="min-h-screen bg-[#4338CA] flex items-center justify-center p-4 selection:bg-pink-500">
@@ -324,9 +339,9 @@ export default function App() {
               <Gamepad2 className="w-8 h-8 text-black" />
             </div>
             <div>
-              <h1 className="text-4xl font-black tracking-tight italic uppercase text-white flex items-center gap-2">
+              <h2 className="text-4xl font-black tracking-tight italic uppercase text-white flex items-center gap-2">
                 WHOSDAT?
-              </h1>
+              </h2>
               <p className="text-xs text-indigo-200 font-semibold uppercase tracking-wider">{room?.category || "Multiplayer Character Guessing Game"}</p>
             </div>
           </div>
@@ -338,6 +353,15 @@ export default function App() {
                 className="bg-pink-500 px-5 py-2 rounded-full border-2 border-black shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] font-bold text-white text-xs flex items-center gap-2 hover:bg-pink-400 active:translate-y-1 active:shadow-[1px_1px_0px_0px_rgba(0,0,0,1)] transition-all"
               >
                 <QrCode className="w-4 h-4" /> ROOM: <span className="font-mono font-black">{room.id}</span>
+              </button>
+            )}
+            
+            {room && (
+              <button 
+                onClick={handleDisconnect}
+                className="bg-rose-500 px-5 py-2 rounded-full border-2 border-black shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] font-bold text-white text-xs flex items-center gap-2 hover:bg-rose-400 active:translate-y-1 active:shadow-[1px_1px_0px_0px_rgba(0,0,0,1)] transition-all"
+              >
+                Disconnect
               </button>
             )}
             
