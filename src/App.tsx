@@ -13,15 +13,6 @@ import { signInWithPopup, User as FirebaseUser } from "firebase/auth";
 import { collection, doc, onSnapshot, query, orderBy } from "firebase/firestore";
 import * as gameLogic from "./lib/gameLogic";
 
-const CATEGORIES = [
-  "Tunisian Celebrities",
-  "Hollywood Actors",
-  "Historical Figures",
-  "Fictional Characters",
-  "Athletes",
-  "Politicians",
-  "Musicians"
-];
 
 export default function App() {
   const [user, setUser] = useState<FirebaseUser | null>(null);
@@ -32,8 +23,8 @@ export default function App() {
   const [history, setHistory] = useState<GameEvent[]>([]);
   
   const [playerName, setPlayerName] = useState<string>("");
-  const [categoryInput, setCategoryInput] = useState<string>(CATEGORIES[0]);
-  const [secretCharacterInput, setSecretCharacterInput] = useState<string>("");
+  const [categoryInput, setCategoryInput] = useState<string>("General Words");
+  const [secretWordInput, setSecretWordInput] = useState<string>("");
   const [questionInput, setQuestionInput] = useState<string>("");
   const [guessInput, setGuessInput] = useState<string>("");
   const [isGuessing, setIsGuessing] = useState<boolean>(false);
@@ -119,11 +110,16 @@ export default function App() {
     }
   }, [questions]);
 
+  const [isLoggingIn, setIsLoggingIn] = useState(false);
+
   const handleLogin = async () => {
+    if (isLoggingIn) return;
+    setIsLoggingIn(true);
     try {
       await signInWithPopup(auth, googleProvider);
     } catch (err: any) {
       setError(err.message);
+      setIsLoggingIn(false);
     }
   };
 
@@ -163,16 +159,16 @@ export default function App() {
     }
   };
 
-  const handleSetSecretCharacter = async () => {
-    if (!secretCharacterInput || secretCharacterInput.trim() === "") {
+  const handleSetSecretWord = async () => {
+    if (!secretWordInput || secretWordInput.trim() === "") {
       setError("Please enter a character name.");
       return;
     }
     setLoading(true);
     setError(null);
     try {
-      await gameLogic.setSecretCharacter(roomId, user!.uid, secretCharacterInput);
-      setSecretCharacterInput("");
+      await gameLogic.setSecretWord(roomId, user!.uid, secretWordInput);
+      setSecretWordInput("");
     } catch (err: any) {
       setError(err.message);
     } finally {
@@ -194,6 +190,10 @@ export default function App() {
 
   const handleAskQuestion = async () => {
     if (!questionInput || questionInput.trim() === "" || !room || !currentPlayer || !targetPlayer) return;
+    if (room.activeAskerPlayerId !== currentPlayer.id) {
+      setError("It's not your turn to ask!");
+      return;
+    }
     setLoading(true);
     setError(null);
     try {
@@ -222,7 +222,7 @@ export default function App() {
     setError(null);
     setGuessFeedback(null);
     try {
-      const res = await gameLogic.submitGuess(roomId, currentPlayer, targetPlayer, guessInput, players);
+      const res = await gameLogic.submitGuess(roomId, currentPlayer, targetPlayer, guessInput, players, room);
       setIsGuessing(false);
       setGuessInput("");
       
@@ -231,6 +231,21 @@ export default function App() {
       } else {
         setGuessFeedback({ success: false, message: `❌ Wrong guess! ${res.explanation}` });
       }
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handlePassTurn = async () => {
+    if (!room || !currentPlayer) return;
+    setLoading(true);
+    setError(null);
+    try {
+      await gameLogic.passTurn(roomId, room, players);
+      setIsGuessing(false);
+      setGuessInput("");
     } catch (err: any) {
       setError(err.message);
     } finally {
@@ -263,10 +278,11 @@ export default function App() {
           <p className="font-bold text-zinc-600 mb-8">Login to join the guessing arena and play with friends online.</p>
           <button 
             onClick={handleLogin}
-            className="w-full bg-emerald-400 text-black font-black text-lg py-4 rounded-xl border-2 border-black shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] hover:bg-emerald-300 active:translate-y-1 active:translate-x-1 active:shadow-[0px_0px_0px_0px_rgba(0,0,0,1)] transition-all flex items-center justify-center gap-3 uppercase"
+            disabled={isLoggingIn}
+            className="w-full bg-emerald-400 text-black font-black text-lg py-4 rounded-xl border-2 border-black shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] hover:bg-emerald-300 active:translate-y-1 active:translate-x-1 active:shadow-[0px_0px_0px_0px_rgba(0,0,0,1)] transition-all flex items-center justify-center gap-3 uppercase disabled:opacity-50 disabled:cursor-not-allowed"
           >
             <LogIn className="w-6 h-6" />
-            Continue with Google
+            {isLoggingIn ? "Connecting..." : "Continue with Google"}
           </button>
         </div>
       </div>
@@ -431,13 +447,13 @@ export default function App() {
                   
                   <div className="mb-4">
                     <label className="block text-xs font-black uppercase text-zinc-500 mb-2">Category</label>
-                    <select
+                    <input
+                      type="text"
+                      placeholder="e.g., General Words"
                       value={categoryInput}
                       onChange={(e) => setCategoryInput(e.target.value)}
-                      className="w-full bg-zinc-50 border-2 border-zinc-300 rounded-xl p-3 font-bold text-zinc-800 focus:border-black focus:ring-0 outline-none"
-                    >
-                      {CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
-                    </select>
+                      className="w-full bg-zinc-50 border-2 border-zinc-300 rounded-xl p-3 font-bold text-zinc-800 focus:border-black focus:ring-0 outline-none placeholder:font-normal placeholder:text-zinc-400"
+                    />
                   </div>
                 </div>
                 
@@ -508,12 +524,12 @@ export default function App() {
                   <User className="w-5 h-5" /> Your Secret
                 </h3>
                 
-                {currentPlayer?.secretCharacter ? (
+                {currentPlayer?.secretWord ? (
                   <div className="bg-emerald-400 text-black border-2 border-black p-6 rounded-2xl text-center shadow-[inset_0px_4px_0px_rgba(255,255,255,0.3)]">
                     <CheckCircle2 className="w-12 h-12 mx-auto mb-3 text-black" />
                     <p className="font-bold text-sm mb-1 opacity-80 uppercase tracking-widest">LOCKED IN AS</p>
                     <p className="font-black text-2xl italic tracking-tight bg-black text-emerald-400 py-2 rounded-xl border-2 border-black shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]">
-                      {currentPlayer.secretCharacter}
+                      {currentPlayer.secretWord}
                     </p>
                   </div>
                 ) : (
@@ -521,13 +537,13 @@ export default function App() {
                     <input
                       type="text"
                       placeholder={`e.g. Someone from ${room.category}`}
-                      value={secretCharacterInput}
-                      onChange={(e) => setSecretCharacterInput(e.target.value)}
+                      value={secretWordInput}
+                      onChange={(e) => setSecretWordInput(e.target.value)}
                       className="w-full bg-white border-2 border-black shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] rounded-xl p-4 font-bold text-lg focus:ring-0 outline-none placeholder:text-zinc-400"
                     />
                     <button
-                      onClick={handleSetSecretCharacter}
-                      disabled={loading || !secretCharacterInput.trim()}
+                      onClick={handleSetSecretWord}
+                      disabled={loading || !secretWordInput.trim()}
                       className="w-full bg-black text-white font-black py-4 rounded-xl shadow-[3px_3px_0px_0px_rgba(100,100,100,1)] hover:bg-gray-800 disabled:opacity-50 transition uppercase tracking-widest"
                     >
                       Submit Character
@@ -544,7 +560,7 @@ export default function App() {
                   {players.map((p) => (
                     <div key={p.id} className="flex items-center justify-between bg-zinc-100 border-2 border-zinc-300 p-4 rounded-xl">
                       <span className="font-bold text-zinc-800">{p.name} {p.id === user.uid && "(You)"}</span>
-                      {p.secretCharacter ? (
+                      {p.secretWord ? (
                         <span className="bg-emerald-100 text-emerald-700 font-bold text-xs px-3 py-1 rounded-md flex items-center gap-1 border border-emerald-300">
                           <CheckCircle2 className="w-3 h-3" /> Ready
                         </span>
@@ -564,12 +580,12 @@ export default function App() {
                   <div className="mt-8">
                     <button
                       onClick={handleStartGame}
-                      disabled={loading || players.length < 2 || !players.every(p => p.secretCharacter)}
+                      disabled={loading || players.length < 2 || !players.every(p => p.secretWord)}
                       className="w-full bg-pink-500 text-white font-black py-4 rounded-xl border-4 border-black shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] hover:bg-pink-400 active:translate-y-1 active:translate-x-1 active:shadow-[0px_0px_0px_0px_rgba(0,0,0,1)] disabled:opacity-50 disabled:grayscale transition text-lg uppercase italic tracking-wide flex justify-center items-center gap-2"
                     >
                       <Play className="w-6 h-6 fill-white" /> Start Game
                     </button>
-                    {!players.every(p => p.secretCharacter) && (
+                    {!players.every(p => p.secretWord) && (
                       <p className="text-xs text-rose-500 font-bold mt-3 text-center bg-rose-50 p-2 rounded-lg border border-rose-200">
                         All players must submit a character before starting.
                       </p>
@@ -668,23 +684,29 @@ export default function App() {
 
                   {!isMeTarget && room.status === "playing" && (
                     <div className="p-4 bg-white border-t-4 border-black">
-                      <div className="flex gap-3">
-                        <input
-                          type="text"
-                          placeholder="Ask a Yes/No question..."
-                          value={questionInput}
-                          onChange={(e) => setQuestionInput(e.target.value)}
-                          onKeyDown={(e) => e.key === 'Enter' && handleAskQuestion()}
-                          className="flex-1 bg-zinc-100 border-2 border-black rounded-xl p-3 text-black font-bold focus:bg-white outline-none focus:ring-0 transition"
-                        />
-                        <button
-                          onClick={handleAskQuestion}
-                          disabled={loading || !questionInput.trim()}
-                          className="bg-indigo-600 text-white p-3 rounded-xl border-2 border-black shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] hover:bg-indigo-500 active:translate-y-1 active:translate-x-1 active:shadow-[0px_0px_0px_0px_rgba(0,0,0,1)] disabled:opacity-50 transition"
-                        >
-                          <Send className="w-5 h-5" />
-                        </button>
-                      </div>
+                      {room.activeAskerPlayerId === currentPlayer.id ? (
+                        <div className="flex gap-3">
+                          <input
+                            type="text"
+                            placeholder="Ask a Yes/No question..."
+                            value={questionInput}
+                            onChange={(e) => setQuestionInput(e.target.value)}
+                            onKeyDown={(e) => e.key === 'Enter' && handleAskQuestion()}
+                            className="flex-1 bg-zinc-100 border-2 border-black rounded-xl p-3 text-black font-bold focus:bg-white outline-none focus:ring-0 transition"
+                          />
+                          <button
+                            onClick={handleAskQuestion}
+                            disabled={loading || !questionInput.trim()}
+                            className="bg-indigo-600 text-white p-3 rounded-xl border-2 border-black shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] hover:bg-indigo-500 active:translate-y-1 active:translate-x-1 active:shadow-[0px_0px_0px_0px_rgba(0,0,0,1)] disabled:opacity-50 transition"
+                          >
+                            <Send className="w-5 h-5" />
+                          </button>
+                        </div>
+                      ) : (
+                        <p className="text-center font-bold text-zinc-500 uppercase tracking-widest text-sm">
+                          Wait for {players.find(p => p.id === room.activeAskerPlayerId)?.name}'s turn
+                        </p>
+                      )}
                     </div>
                   )}
                 </div>
@@ -703,19 +725,17 @@ export default function App() {
                       <div className="w-12 h-12 bg-white rounded-xl border-2 border-black shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] flex items-center justify-center">
                         <UserCheck className="w-6 h-6 text-indigo-600" />
                       </div>
-                      <span className="text-3xl font-black italic tracking-tight">{targetPlayer.name}</span>
-                    </div>
-
-                    {!isMeTarget && (
+                      <span className="text-3xl font-black italic tracking-tight">{targetPlayer.name}</span></div>
+                                     {!isMeTarget && room.activeAskerPlayerId === currentPlayer.id && (
                       <div className="bg-white/10 p-5 rounded-2xl border-2 border-white/20 backdrop-blur-sm">
-                        <p className="text-sm font-bold mb-3 text-indigo-100 uppercase tracking-widest text-center">Solve the Mystery</p>
+                        <p className="text-sm font-bold mb-3 text-indigo-100 uppercase tracking-widest text-center">Your Turn</p>
                         
                         {isGuessing ? (
                           <div className="flex flex-col gap-3">
                             <input
                               type="text"
                               autoFocus
-                              placeholder="Enter character name..."
+                              placeholder="Enter your guess..."
                               value={guessInput}
                               onChange={(e) => setGuessInput(e.target.value)}
                               onKeyDown={(e) => e.key === 'Enter' && handleGuess()}
@@ -736,24 +756,37 @@ export default function App() {
                                 Cancel
                               </button>
                             </div>
-                            {currentPlayer?.hasGuessedThisRound && (
-                              <p className="text-xs text-rose-300 font-bold text-center bg-rose-900/50 py-1 px-2 rounded mt-1">Locked! Wait for next turn.</p>
-                            )}
                           </div>
                         ) : (
-                          <button
-                            onClick={() => setIsGuessing(true)}
-                            disabled={currentPlayer?.hasGuessedThisRound}
-                            className={`w-full font-black py-3 rounded-xl border-2 border-black shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] transition flex items-center justify-center gap-2 uppercase tracking-wide
-                              ${currentPlayer?.hasGuessedThisRound 
-                                ? 'bg-zinc-500 text-zinc-300 opacity-80' 
-                                : 'bg-pink-500 text-white hover:bg-pink-400 active:translate-y-1 active:translate-x-1 active:shadow-[0px_0px_0px_0px_rgba(0,0,0,1)]'
-                              }`}
-                          >
-                            <Trophy className="w-5 h-5" /> 
-                            {currentPlayer?.hasGuessedThisRound ? 'Locked for Round' : 'Make a Guess'}
-                          </button>
+                          <div className="flex flex-col gap-2">
+                            <button
+                              onClick={() => setIsGuessing(true)}
+                              disabled={currentPlayer?.hasGuessedThisRound}
+                              className={`w-full font-black py-3 rounded-xl border-2 border-black shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] transition flex items-center justify-center gap-2 uppercase tracking-wide
+                                ${currentPlayer?.hasGuessedThisRound 
+                                  ? 'bg-zinc-500 text-zinc-300 opacity-80' 
+                                  : 'bg-pink-500 text-white hover:bg-pink-400 active:translate-y-1 active:translate-x-1 active:shadow-[0px_0px_0px_0px_rgba(0,0,0,1)]'
+                                }`}
+                            >
+                              <Trophy className="w-5 h-5" /> 
+                              {currentPlayer?.hasGuessedThisRound ? 'Locked for Round' : 'Make a Guess'}
+                            </button>
+                            <button
+                              onClick={handlePassTurn}
+                              disabled={loading || currentPlayer?.hasGuessedThisRound}
+                              className="w-full font-black py-3 bg-zinc-700 text-white rounded-xl border-2 border-black shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] hover:bg-zinc-600 transition active:translate-y-1 active:translate-x-1 active:shadow-[0px_0px_0px_0px_rgba(0,0,0,1)] text-sm uppercase"
+                            >
+                              Pass Turn
+                            </button>
+                          </div>
                         )}
+                      </div>
+                    )}
+                    {!isMeTarget && room.activeAskerPlayerId !== currentPlayer.id && (
+                      <div className="bg-white/10 p-5 rounded-2xl border-2 border-white/20 backdrop-blur-sm text-center">
+                        <p className="text-sm font-bold text-indigo-100 uppercase tracking-widest">
+                          Waiting for {players.find(p => p.id === room.activeAskerPlayerId)?.name}
+                        </p>
                       </div>
                     )}
 
@@ -762,7 +795,7 @@ export default function App() {
                         <p className="text-xs font-black uppercase tracking-widest opacity-80 mb-1">YOU ARE THE TARGET</p>
                         <p className="font-bold text-sm mb-3">Answer questions accurately to keep the game fair!</p>
                         <div className="bg-black text-emerald-400 font-black text-xl py-2 px-4 rounded-xl border-2 border-black shadow-[inset_0px_2px_0px_rgba(255,255,255,0.2)]">
-                          {currentPlayer.secretCharacter}
+                          {currentPlayer.secretWord}
                         </div>
                       </div>
                     )}

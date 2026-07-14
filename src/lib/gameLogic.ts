@@ -16,7 +16,7 @@ export function generateDocId(): string {
 }
 
 // Create a new room
-export async function createRoom(categoryId: string): Promise<string> {
+export async function createRoom(categoryInput: string): Promise<string> {
   const roomId = generateId();
   if (!auth.currentUser) throw new Error("Not authenticated");
   
@@ -24,8 +24,10 @@ export async function createRoom(categoryId: string): Promise<string> {
     id: roomId,
     status: "lobby",
     activeTargetPlayerId: null,
+    activeAskerPlayerId: null,
+    turnOrder: [],
     winnerId: null,
-    category: categoryId || "Tunisian Celebrities",
+    category: categoryInput || "General Words",
     leaderId: auth.currentUser.uid,
     createdAt: new Date().toISOString()
   };
@@ -62,7 +64,7 @@ export async function joinRoom(roomId: string, playerName: string): Promise<Play
     id: uid,
     uid: uid,
     name: playerName.trim(),
-    secretCharacter: "",
+    secretWord: "",
     state: "ACTIVE",
     score: 0,
     hasGuessedThisRound: false,
@@ -75,33 +77,41 @@ export async function joinRoom(roomId: string, playerName: string): Promise<Play
   return newPlayer;
 }
 
-// Set secret character
-export async function setSecretCharacter(roomId: string, playerId: string, character: string) {
+// Set secret word
+export async function setSecretWord(roomId: string, playerId: string, word: string) {
   await updateDoc(doc(db, `rooms/${roomId}/players`, playerId), {
-    secretCharacter: character.trim()
+    secretWord: word.trim()
   });
   
   const pDoc = await getDoc(doc(db, `rooms/${roomId}/players`, playerId));
   const pName = pDoc.data()?.name || "A player";
-  await addGameEvent(roomId, "system", `🤫 ${pName} has submitted their secret character!`);
+  await addGameEvent(roomId, "system", `🤫 ${pName} has submitted their secret word!`);
 }
 
 // Start game
 export async function startGame(roomId: string, players: Player[]) {
   if (players.length < 2) throw new Error("Need at least 2 players");
   
-  const activePlayers = players.filter(p => !!p.secretCharacter);
-  if (activePlayers.length < players.length) throw new Error("All players must set their secret characters!");
+  const activePlayers = players.filter(p => !!p.secretWord);
+  if (activePlayers.length < players.length) throw new Error("All players must set their secret words!");
 
-  const firstTarget = activePlayers[0];
+  // The turn order will just be the active players
+  const turnOrder = activePlayers.map(p => p.id);
+  const firstTargetId = turnOrder[0];
+  const firstAskerId = turnOrder[1 % turnOrder.length];
 
   await updateDoc(doc(db, "rooms", roomId), {
     status: "playing",
-    activeTargetPlayerId: firstTarget.id,
+    activeTargetPlayerId: firstTargetId,
+    activeAskerPlayerId: firstAskerId,
+    turnOrder: turnOrder,
     winnerId: null
   });
 
-  await addGameEvent(roomId, "system", `🚀 The game has started! Target: ${firstTarget.name}'s secret character is first.`);
+  const targetPlayer = activePlayers.find(p => p.id === firstTargetId);
+  const askerPlayer = activePlayers.find(p => p.id === firstAskerId);
+
+  await addGameEvent(roomId, "system", `🚀 The game has started! Target: ${targetPlayer?.name}'s secret word. ${askerPlayer?.name} goes first.`);
 }
 
 // Ask question
@@ -128,7 +138,8 @@ export async function answerQuestion(roomId: string, question: Question, target:
 
   await addGameEvent(roomId, "answer", `📢 ${target.name} answered ${question.askerName}'s question with: "${answer}"`);
 
-  // Unlocking guesses
+  // Allow everyone to guess again? The user said members take turns one by one.
+  // We'll unlock the current asker's ability to guess.
   for (const p of allPlayers) {
     if (p.hasGuessedThisRound) {
       await updateDoc(doc(db, `rooms/${roomId}/players`, p.id), { hasGuessedThisRound: false });
@@ -136,14 +147,82 @@ export async function answerQuestion(roomId: string, question: Question, target:
   }
 }
 
+// Advance turn
+export async function advanceTurn(roomId: string, room: Room, allPlayers: Player[], targetGuessedOut: boolean = false) {
+  const { turnOrder, activeTargetPlayerId, activeAskerPlayerId } = room;
+  if (!activeTargetPlayerId || !activeAskerPlayerId) return;
+
+  const currentTargetIdx = turnOrder.indexOf(activeTargetPlayerId);
+  let nextAskerIdx = (turnOrder.indexOf(activeAskerPlayerId) + 1) % turnOrder.length;
+  let nextTargetIdx = currentTargetIdx;
+
+  if (targetGuessedOut) {
+    // If the target is out, we just move to the next available target
+    nextTargetIdx = (currentTargetIdx + 1) % turnOrder.length;
+    nextAskerIdx = (nextTargetIdx + 1) % turnOrder.length;
+  } else if (nextAskerIdx === currentTargetIdx) {
+    // Everyone has asked the target, shift target
+    nextTargetIdx = (currentTargetIdx + 1) % turnOrder.length;
+    nextAskerIdx = (nextTargetIdx + 1) % turnOrder.length;
+  }
+
+  // Need to make sure target is not COMPLETED
+  let safeCounter = 0;
+  let targetChanged = false;
+  if (nextTargetIdx !== currentTargetIdx) {
+    targetChanged = true;
+  }
+  
+  while (allPlayers.find(p => p.id === turnOrder[nextTargetIdx])?.state === "COMPLETED") {
+    nextTargetIdx = (nextTargetIdx + 1) % turnOrder.length;
+    targetChanged = true;
+    safeCounter++;
+    if (safeCounter > turnOrder.length) break; // Game over essentially
+  }
+  
+  if (targetChanged) {
+    nextAskerIdx = (nextTargetIdx + 1) % turnOrder.length;
+  }
+
+  safeCounter = 0;
+  // Asker can't be the same as target
+  while (nextAskerIdx === nextTargetIdx) {
+    nextAskerIdx = (nextAskerIdx + 1) % turnOrder.length;
+    safeCounter++;
+    if (safeCounter > turnOrder.length) break;
+  }
+
+  const newTargetId = turnOrder[nextTargetIdx];
+  const newAskerId = turnOrder[nextAskerIdx];
+
+  await updateDoc(doc(db, "rooms", roomId), {
+    activeTargetPlayerId: newTargetId,
+    activeAskerPlayerId: newAskerId
+  });
+
+  const nextTargetPlayer = allPlayers.find(p => p.id === newTargetId);
+  const nextAskerPlayer = allPlayers.find(p => p.id === newAskerId);
+
+  // Ensure new asker is not locked out of guessing
+  if (nextAskerPlayer?.hasGuessedThisRound) {
+    await updateDoc(doc(db, `rooms/${roomId}/players`, newAskerId), { hasGuessedThisRound: false });
+  }
+
+  if (newTargetId !== activeTargetPlayerId) {
+    await addGameEvent(roomId, "system", `🔄 Target shifts to ${nextTargetPlayer?.name}'s secret word! ${nextAskerPlayer?.name} starts the questioning.`);
+  } else {
+    await addGameEvent(roomId, "system", `👉 It's now ${nextAskerPlayer?.name}'s turn to ask ${nextTargetPlayer?.name}.`);
+  }
+}
+
 // Submit a guess
-export async function submitGuess(roomId: string, guesser: Player, target: Player, guess: string, allPlayers: Player[]) {
+export async function submitGuess(roomId: string, guesser: Player, target: Player, guess: string, allPlayers: Player[], room: Room) {
   if (guesser.hasGuessedThisRound) throw new Error("You already made a guess!");
 
   const res = await fetch(`/api/gemini/evaluate-guess`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ targetName: target.secretCharacter, guess, category: "Game Characters" }) // Defaulting to the category from the room would be better, but we don't have room context here directly. Let's pass it from UI if needed.
+    body: JSON.stringify({ targetName: target.secretWord, guess, category: room.category })
   });
   
   const data = await res.json();
@@ -152,17 +231,11 @@ export async function submitGuess(roomId: string, guesser: Player, target: Playe
     await updateDoc(doc(db, `rooms/${roomId}/players`, target.id), { state: "COMPLETED" });
     await updateDoc(doc(db, `rooms/${roomId}/players`, guesser.id), { score: guesser.score + 10 });
     
-    await addGameEvent(roomId, "guess_correct", `🎉 ${guesser.name} discovered ${target.name}'s character!`, guesser.name);
-
-    // Unlocks guessing locks
-    for (const p of allPlayers) {
-      if (p.hasGuessedThisRound) {
-        await updateDoc(doc(db, `rooms/${roomId}/players`, p.id), { hasGuessedThisRound: false });
-      }
-    }
+    await addGameEvent(roomId, "guess_correct", `🎉 ${guesser.name} discovered ${target.name}'s word!`, guesser.name);
 
     const activeTargets = allPlayers.filter(p => p.state === "ACTIVE" && p.id !== target.id);
     if (activeTargets.length === 0) {
+      // Game over logic
       let highestScore = -1;
       let winnerId = null;
       for (const p of allPlayers) {
@@ -177,22 +250,32 @@ export async function submitGuess(roomId: string, guesser: Player, target: Playe
       await updateDoc(doc(db, "rooms", roomId), {
         status: "ended",
         activeTargetPlayerId: null,
+        activeAskerPlayerId: null,
         winnerId
       });
       await addGameEvent(roomId, "complete", `🏆 Game Over!`);
     } else {
-      await updateDoc(doc(db, "rooms", roomId), {
-        activeTargetPlayerId: activeTargets[0].id
-      });
-      await addGameEvent(roomId, "system", `🔄 Target shifts to ${activeTargets[0].name}'s character!`);
+      // Advance turn with targetGuessedOut = true
+      await advanceTurn(roomId, room, allPlayers, true);
     }
 
     return { correct: true, explanation: data.explanation };
   } else {
     await updateDoc(doc(db, `rooms/${roomId}/players`, guesser.id), { hasGuessedThisRound: true });
-    await addGameEvent(roomId, "guess_wrong", `❌ ${guesser.name} guessed "${guess}" for ${target.name}'s character, but it's WRONG.`);
+    await addGameEvent(roomId, "guess_wrong", `❌ ${guesser.name} guessed "${guess}" for ${target.name}'s word, but it's WRONG.`);
+    
+    // Asker guessed wrong, turn passes to next person
+    await advanceTurn(roomId, room, allPlayers, false);
+    
     return { correct: false, explanation: data.explanation };
   }
+}
+
+// Pass Turn
+export async function passTurn(roomId: string, room: Room, allPlayers: Player[]) {
+  const asker = allPlayers.find(p => p.id === room.activeAskerPlayerId);
+  await addGameEvent(roomId, "system", `⏭️ ${asker?.name} passed their guess.`);
+  await advanceTurn(roomId, room, allPlayers, false);
 }
 
 // Reset Game
@@ -200,6 +283,8 @@ export async function resetGame(roomId: string, players: Player[]) {
   await updateDoc(doc(db, "rooms", roomId), {
     status: "lobby",
     activeTargetPlayerId: null,
+    activeAskerPlayerId: null,
+    turnOrder: [],
     winnerId: null
   });
 
@@ -208,7 +293,7 @@ export async function resetGame(roomId: string, players: Player[]) {
       state: "ACTIVE",
       score: 0,
       hasGuessedThisRound: false,
-      secretCharacter: ""
+      secretWord: ""
     });
   }
 

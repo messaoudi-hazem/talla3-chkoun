@@ -2,7 +2,7 @@ export interface Player {
   id: string; // The subcollection doc ID
   uid: string; // Firebase Auth UID
   name: string;
-  secretCharacter: string;
+  secretWord: string;
   state: "ACTIVE" | "COMPLETED";
   score: number;
   hasGuessedThisRound: boolean;
@@ -31,6 +31,8 @@ export interface Room {
   id: string; // Document ID (the room code)
   status: "lobby" | "playing" | "ended";
   activeTargetPlayerId: string | null;
+  activeAskerPlayerId: string | null;
+  turnOrder: string[];
   winnerId: string | null;
   category: string;
   leaderId: string; // UID of the room creator
