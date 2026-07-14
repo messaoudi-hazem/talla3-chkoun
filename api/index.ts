@@ -1,4 +1,3 @@
-const appModule = require('../dist/server');
-const app = appModule.default || appModule;
+import app from '../server';
 
 export default app;
