@@ -44,6 +44,8 @@ app.post("/api/gemini/evaluate-guess", async (req, res) => {
     return res.json({ isMatch: false, explanation: "Incorrect guess (local validation)" });
   }
 
+  console.log("Using Gemini API key (length):", apiKey.length);
+
   try {
     const ai = new GoogleGenAI({
       apiKey: apiKey,
@@ -78,9 +80,17 @@ Return a JSON object exactly like this:
       }
     });
 
-    const responseText = response.text || "{}";
+    const responseText = response.text;
+    console.log("Gemini API response text:", responseText);
+    
+    if (!responseText) {
+      throw new Error("No text returned from Gemini");
+    }
+
     // Robustly strip any potential Markdown code fences that the model might generate
     const cleanJSON = responseText.replace(/```json\s*|```\s*/gi, "").trim();
+    console.log("Cleaned JSON:", cleanJSON);
+    
     const result = JSON.parse(cleanJSON);
     return res.json({
       isMatch: !!result.isMatch,
