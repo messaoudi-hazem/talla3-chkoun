@@ -685,23 +685,32 @@ export default function App() {
                   {!isMeTarget && room.status === "playing" && (
                     <div className="p-4 bg-white border-t-4 border-black">
                       {room.activeAskerPlayerId === currentPlayer.id ? (
-                        <div className="flex gap-3">
-                          <input
-                            type="text"
-                            placeholder="Ask a Yes/No question..."
-                            value={questionInput}
-                            onChange={(e) => setQuestionInput(e.target.value)}
-                            onKeyDown={(e) => e.key === 'Enter' && handleAskQuestion()}
-                            className="flex-1 bg-zinc-100 border-2 border-black rounded-xl p-3 text-black font-bold focus:bg-white outline-none focus:ring-0 transition"
-                          />
-                          <button
-                            onClick={handleAskQuestion}
-                            disabled={loading || !questionInput.trim()}
-                            className="bg-indigo-600 text-white p-3 rounded-xl border-2 border-black shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] hover:bg-indigo-500 active:translate-y-1 active:translate-x-1 active:shadow-[0px_0px_0px_0px_rgba(0,0,0,1)] disabled:opacity-50 transition"
-                          >
-                            <Send className="w-5 h-5" />
-                          </button>
-                        </div>
+                        currentPlayer.hasAskedThisRound ? (
+                          <div className="p-3 bg-zinc-100 border-2 border-black rounded-xl flex items-center justify-center gap-2">
+                            <CheckCircle2 className="w-5 h-5 text-emerald-500 shrink-0" />
+                            <p className="text-sm font-bold text-zinc-700 uppercase tracking-wide">
+                              Question submitted! Make your guess or pass below.
+                            </p>
+                          </div>
+                        ) : (
+                          <div className="flex gap-3">
+                            <input
+                              type="text"
+                              placeholder="Ask a Yes/No question..."
+                              value={questionInput}
+                              onChange={(e) => setQuestionInput(e.target.value)}
+                              onKeyDown={(e) => e.key === 'Enter' && handleAskQuestion()}
+                              className="flex-1 bg-zinc-100 border-2 border-black rounded-xl p-3 text-black font-bold focus:bg-white outline-none focus:ring-0 transition"
+                            />
+                            <button
+                              onClick={handleAskQuestion}
+                              disabled={loading || !questionInput.trim()}
+                              className="bg-indigo-600 text-white p-3 rounded-xl border-2 border-black shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] hover:bg-indigo-500 active:translate-y-1 active:translate-x-1 active:shadow-[0px_0px_0px_0px_rgba(0,0,0,1)] disabled:opacity-50 transition"
+                            >
+                              <Send className="w-5 h-5" />
+                            </button>
+                          </div>
+                        )
                       ) : (
                         <p className="text-center font-bold text-zinc-500 uppercase tracking-widest text-sm">
                           Wait for {players.find(p => p.id === room.activeAskerPlayerId)?.name}'s turn

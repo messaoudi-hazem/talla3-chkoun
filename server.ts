@@ -12,7 +12,8 @@ const PORT = 3000;
 
 app.use(express.json());
 
-function cleanString(str: string): string {
+function cleanString(str: any): string {
+  if (typeof str !== "string") str = String(str || "");
   return str.trim().toLowerCase().replace(/\s+/g, ' ');
 }
 
@@ -78,7 +79,9 @@ Return a JSON object exactly like this:
     });
 
     const responseText = response.text || "{}";
-    const result = JSON.parse(responseText.trim());
+    // Robustly strip any potential Markdown code fences that the model might generate
+    const cleanJSON = responseText.replace(/```json\s*|```\s*/gi, "").trim();
+    const result = JSON.parse(cleanJSON);
     return res.json({
       isMatch: !!result.isMatch,
       explanation: result.explanation || "AI semantic matching evaluated"

@@ -68,6 +68,7 @@ export async function joinRoom(roomId: string, playerName: string): Promise<Play
     state: "ACTIVE",
     score: 0,
     hasGuessedThisRound: false,
+    hasAskedThisRound: false,
     joinedAt: new Date().toISOString()
   };
 
@@ -100,6 +101,14 @@ export async function startGame(roomId: string, players: Player[]) {
   const firstTargetId = turnOrder[0];
   const firstAskerId = turnOrder[1 % turnOrder.length];
 
+  for (const p of players) {
+    await updateDoc(doc(db, `rooms/${roomId}/players`, p.id), {
+      hasGuessedThisRound: false,
+      hasAskedThisRound: false,
+      state: "ACTIVE"
+    });
+  }
+
   await updateDoc(doc(db, "rooms", roomId), {
     status: "playing",
     activeTargetPlayerId: firstTargetId,
@@ -116,6 +125,8 @@ export async function startGame(roomId: string, players: Player[]) {
 
 // Ask question
 export async function askQuestion(roomId: string, asker: Player, target: Player, text: string) {
+  if (asker.hasAskedThisRound) throw new Error("You have already asked a question this turn!");
+
   const qId = generateDocId();
   const q: Question = {
     id: qId,
@@ -127,6 +138,7 @@ export async function askQuestion(roomId: string, asker: Player, target: Player,
   };
 
   await setDoc(doc(db, `rooms/${roomId}/questions`, qId), q);
+  await updateDoc(doc(db, `rooms/${roomId}/players`, asker.id), { hasAskedThisRound: true });
   await addGameEvent(roomId, "question", `❓ ${asker.name} asked ${target.name}: "${text.trim()}"`);
 }
 
@@ -138,13 +150,8 @@ export async function answerQuestion(roomId: string, question: Question, target:
 
   await addGameEvent(roomId, "answer", `📢 ${target.name} answered ${question.askerName}'s question with: "${answer}"`);
 
-  // Allow everyone to guess again? The user said members take turns one by one.
-  // We'll unlock the current asker's ability to guess.
-  for (const p of allPlayers) {
-    if (p.hasGuessedThisRound) {
-      await updateDoc(doc(db, `rooms/${roomId}/players`, p.id), { hasGuessedThisRound: false });
-    }
-  }
+  // Under the new game rules, players only get exactly one question and one guess per target round.
+  // We do NOT unlock the guesser state here when a question is answered; guessing status is reset only on target change or when a new player's turn starts.
 }
 
 // Advance turn
@@ -203,14 +210,21 @@ export async function advanceTurn(roomId: string, room: Room, allPlayers: Player
   const nextTargetPlayer = allPlayers.find(p => p.id === newTargetId);
   const nextAskerPlayer = allPlayers.find(p => p.id === newAskerId);
 
-  // Ensure new asker is not locked out of guessing
-  if (nextAskerPlayer?.hasGuessedThisRound) {
-    await updateDoc(doc(db, `rooms/${roomId}/players`, newAskerId), { hasGuessedThisRound: false });
-  }
-
   if (newTargetId !== activeTargetPlayerId) {
+    // Reset all players' guess and ask states for the new target
+    for (const p of allPlayers) {
+      await updateDoc(doc(db, `rooms/${roomId}/players`, p.id), { 
+        hasGuessedThisRound: false,
+        hasAskedThisRound: false
+      });
+    }
     await addGameEvent(roomId, "system", `🔄 Target shifts to ${nextTargetPlayer?.name}'s secret word! ${nextAskerPlayer?.name} starts the questioning.`);
   } else {
+    // Same target, new asker. Ensure the new asker can ask and guess.
+    await updateDoc(doc(db, `rooms/${roomId}/players`, newAskerId), { 
+      hasAskedThisRound: false,
+      hasGuessedThisRound: false
+    });
     await addGameEvent(roomId, "system", `👉 It's now ${nextAskerPlayer?.name}'s turn to ask ${nextTargetPlayer?.name}.`);
   }
 }
@@ -219,7 +233,16 @@ export async function advanceTurn(roomId: string, room: Room, allPlayers: Player
 export async function submitGuess(roomId: string, guesser: Player, target: Player, guess: string, allPlayers: Player[], room: Room) {
   if (guesser.hasGuessedThisRound) throw new Error("You already made a guess!");
 
-  const res = await fetch(`/api/gemini/evaluate-guess`, {
+  // Safe and robust URL construction to prevent DOMException: "The string did not match the expected pattern" in iframe preview sandboxes
+  let url = "/api/gemini/evaluate-guess";
+  if (typeof window !== "undefined" && window.location) {
+    const { protocol, host } = window.location;
+    if (protocol && host && protocol !== "about:") {
+      url = `${protocol}//${host}/api/gemini/evaluate-guess`;
+    }
+  }
+
+  const res = await fetch(url, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ targetName: target.secretWord, guess, category: room.category })
@@ -293,6 +316,7 @@ export async function resetGame(roomId: string, players: Player[]) {
       state: "ACTIVE",
       score: 0,
       hasGuessedThisRound: false,
+      hasAskedThisRound: false,
       secretWord: ""
     });
   }

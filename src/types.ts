@@ -6,6 +6,7 @@ export interface Player {
   state: "ACTIVE" | "COMPLETED";
   score: number;
   hasGuessedThisRound: boolean;
+  hasAskedThisRound: boolean;
   joinedAt: string;
 }
 
