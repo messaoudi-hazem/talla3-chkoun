@@ -9,7 +9,7 @@ import {
 import { QRCodeSVG } from 'qrcode.react';
 import { Player, Room, GameEvent, Question } from "./types";
 import { auth, googleProvider, db } from "./lib/firebase";
-import { signInWithPopup, User as FirebaseUser } from "firebase/auth";
+import { signInWithPopup, User as FirebaseUser, signOut } from "firebase/auth";
 import { collection, doc, onSnapshot, query, orderBy } from "firebase/firestore";
 import * as gameLogic from "./lib/gameLogic";
 
@@ -303,6 +303,17 @@ export default function App() {
     }
   };
 
+  const handleLogout = async () => {
+    setLoading(true);
+    try {
+      await signOut(auth);
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   if (!user) {
     return (
       <div className="min-h-screen bg-[#4338CA] flex items-center justify-center p-4 selection:bg-pink-500">
@@ -364,6 +375,13 @@ export default function App() {
                 Disconnect
               </button>
             )}
+            
+            <button 
+              onClick={handleLogout}
+              className="bg-black px-5 py-2 rounded-full border-2 border-black shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] font-bold text-white text-xs flex items-center gap-2 hover:bg-zinc-800 active:translate-y-1 active:shadow-[1px_1px_0px_0px_rgba(0,0,0,1)] transition-all"
+            >
+              Logout
+            </button>
             
             <div className="bg-emerald-400 px-5 py-2 rounded-full border-2 border-black shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] text-black font-bold text-xs flex items-center gap-2">
               <div className="w-2.5 h-2.5 bg-black rounded-full animate-ping" />
