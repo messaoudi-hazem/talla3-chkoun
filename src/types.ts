@@ -24,6 +24,8 @@ export interface GameEvent {
   type: string;
   timestamp: string;
   message: string;
+  messageKey?: string;
+  messageArgs?: Record<string, any>;
   playerName?: string;
   payload?: any;
 }

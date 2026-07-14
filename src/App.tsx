@@ -4,7 +4,8 @@ import {
   Trophy, Target, User, Users, HelpCircle, Send, 
   CheckCircle2, XCircle, ArrowRight, RotateCcw, 
   Plus, Play, Sparkles, MessageSquare, Crown, 
-  Shuffle, LogIn, Info, Gamepad2, UserCheck, QrCode
+  Shuffle, LogIn, Info, Gamepad2, UserCheck, QrCode,
+  LogOut, WifiOff, Languages, Settings
 } from "lucide-react";
 import { QRCodeSVG } from 'qrcode.react';
 import { Player, Room, GameEvent, Question } from "./types";
@@ -12,9 +13,12 @@ import { auth, googleProvider, db } from "./lib/firebase";
 import { signInWithPopup, User as FirebaseUser, signOut } from "firebase/auth";
 import { collection, doc, onSnapshot, query, orderBy } from "firebase/firestore";
 import * as gameLogic from "./lib/gameLogic";
+import { translations } from "./translations";
 
 
 export default function App() {
+  const [lang, setLang] = useState<"en" | "ar">("en");
+  const t = translations[lang];
   const [user, setUser] = useState<FirebaseUser | null>(null);
   const [roomId, setRoomId] = useState<string>("");
   const [room, setRoom] = useState<Room | null>(null);
@@ -24,6 +28,15 @@ export default function App() {
   
   const [playerName, setPlayerName] = useState<string>("");
   const [categoryInput, setCategoryInput] = useState<string>("General Words");
+  const [isOptionsOpen, setIsOptionsOpen] = useState<boolean>(false);
+  const [isPlayingMusic, setIsPlayingMusic] = useState<boolean>(true);
+  const audioRef = useRef<HTMLAudioElement>(null);
+
+  useEffect(() => {
+    if (isPlayingMusic && audioRef.current) {
+      audioRef.current.play().catch(e => console.log("Auto-play prevented", e));
+    }
+  }, []);
   const [secretWordInput, setSecretWordInput] = useState<string>("");
   const [questionInput, setQuestionInput] = useState<string>("");
   const [guessInput, setGuessInput] = useState<string>("");
@@ -148,10 +161,10 @@ export default function App() {
     setLoading(true);
     setError(null);
     try {
-      const newId = await gameLogic.createRoom(categoryInput);
+      const newId = await gameLogic.createRoom(categoryInput, lang);
       setRoomId(newId);
       // Automatically join
-      await gameLogic.joinRoom(newId, playerName || user?.displayName || "Player");
+      await gameLogic.joinRoom(newId, playerName || user?.displayName || "Player", lang);
       // Update URL without reload
       window.history.pushState({}, '', `?room=${newId}`);
     } catch (err: any) {
@@ -170,7 +183,7 @@ export default function App() {
     setError(null);
     try {
       const c = customRoomCode.trim().toUpperCase();
-      await gameLogic.joinRoom(c, playerName || user?.displayName || "Player");
+      await gameLogic.joinRoom(c, playerName || user?.displayName || "Player", lang);
       setRoomId(c);
       window.history.pushState({}, '', `?room=${c}`);
     } catch (err: any) {
@@ -188,7 +201,7 @@ export default function App() {
     setLoading(true);
     setError(null);
     try {
-      await gameLogic.setSecretWord(roomId, user!.uid, secretWordInput);
+      await gameLogic.setSecretWord(roomId, user!.uid, secretWordInput, lang);
       setSecretWordInput("");
     } catch (err: any) {
       setError(err.message);
@@ -201,7 +214,7 @@ export default function App() {
     setLoading(true);
     setError(null);
     try {
-      await gameLogic.startGame(roomId, players);
+      await gameLogic.startGame(roomId, players, lang);
     } catch (err: any) {
       setError(err.message);
     } finally {
@@ -218,7 +231,7 @@ export default function App() {
     setLoading(true);
     setError(null);
     try {
-      await gameLogic.askQuestion(roomId, currentPlayer, targetPlayer, questionInput);
+      await gameLogic.askQuestion(roomId, currentPlayer, targetPlayer, questionInput, lang);
       setQuestionInput("");
     } catch (err: any) {
       setError(err.message);
@@ -231,7 +244,7 @@ export default function App() {
     if (!targetPlayer) return;
     setError(null);
     try {
-      await gameLogic.answerQuestion(roomId, question, targetPlayer, answer, players);
+      await gameLogic.answerQuestion(roomId, question, targetPlayer, answer, players, lang);
     } catch (err: any) {
       setError(err.message);
     }
@@ -243,7 +256,7 @@ export default function App() {
     setError(null);
     setGuessFeedback(null);
     try {
-      const res = await gameLogic.submitGuess(roomId, currentPlayer, targetPlayer, guessInput, players, room);
+      const res = await gameLogic.submitGuess(roomId, currentPlayer, targetPlayer, guessInput, players, room, lang);
       setIsGuessing(false);
       setGuessInput("");
       
@@ -264,7 +277,7 @@ export default function App() {
     setLoading(true);
     setError(null);
     try {
-      await gameLogic.passTurn(roomId, room, players);
+      await gameLogic.passTurn(roomId, room, players, lang);
       setIsGuessing(false);
       setGuessInput("");
     } catch (err: any) {
@@ -280,7 +293,7 @@ export default function App() {
     setError(null);
     setGuessFeedback(null);
     try {
-      await gameLogic.resetGame(roomId, players);
+      await gameLogic.resetGame(roomId, players, lang);
     } catch (err: any) {
       setError(err.message);
     } finally {
@@ -292,7 +305,7 @@ export default function App() {
     if (!user || !roomId) return;
     setLoading(true);
     try {
-      await gameLogic.leaveRoom(roomId, user.uid);
+      await gameLogic.leaveRoom(roomId, user.uid, lang);
       setRoomId("");
       setRoom(null);
       window.history.pushState({}, '', '/');
@@ -321,15 +334,15 @@ export default function App() {
           <div className="bg-yellow-400 w-16 h-16 mx-auto rounded-2xl border-2 border-black shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] flex items-center justify-center mb-6">
             <Gamepad2 className="w-8 h-8 text-black" />
           </div>
-          <h1 className="text-4xl font-black tracking-tight italic uppercase mb-2">WHOSDAT?</h1>
-          <p className="font-bold text-zinc-600 mb-8">Login to join the guessing arena and play with friends online.</p>
+          <h1 className="text-4xl font-black tracking-tight italic uppercase mb-2">{t.whosDat}</h1>
+          <p className="font-bold text-zinc-600 mb-8">{t.loginInstruction}</p>
           <button 
             onClick={handleLogin}
             disabled={isLoggingIn}
             className="w-full bg-emerald-400 text-black font-black text-lg py-4 rounded-xl border-2 border-black shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] hover:bg-emerald-300 active:translate-y-1 active:translate-x-1 active:shadow-[0px_0px_0px_0px_rgba(0,0,0,1)] transition-all flex items-center justify-center gap-3 uppercase disabled:opacity-50 disabled:cursor-not-allowed"
           >
             <LogIn className="w-6 h-6" />
-            {isLoggingIn ? "Connecting..." : "Continue with Google"}
+            {isLoggingIn ? t.connecting : t.continueGoogle}
           </button>
         </div>
       </div>
@@ -351,13 +364,53 @@ export default function App() {
             </div>
             <div>
               <h2 className="text-4xl font-black tracking-tight italic uppercase text-white flex items-center gap-2">
-                WHOSDAT?
+                {t.whosDat}
               </h2>
-              <p className="text-xs text-indigo-200 font-semibold uppercase tracking-wider">{room?.category || "Multiplayer Character Guessing Game"}</p>
+              <p className="text-xs text-indigo-200 font-semibold uppercase tracking-wider">{room?.category || t.gameDescription}</p>
             </div>
           </div>
 
           <div className="flex flex-wrap items-center gap-3">
+            <div className="relative">
+              <button
+                onClick={() => setIsOptionsOpen(!isOptionsOpen)}
+                className="bg-zinc-800 px-3 py-2 rounded-full border-2 border-black shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] font-bold text-white text-xs flex items-center gap-2 hover:bg-zinc-700 active:translate-y-1 active:shadow-[1px_1px_0px_0px_rgba(0,0,0,1)] transition-all"
+              >
+                <Settings className="w-4 h-4" />
+              </button>
+              {isOptionsOpen && (
+                <div className="absolute right-0 top-12 bg-white border-2 border-black rounded-xl p-2 shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] flex flex-col gap-2 z-50">
+                  <button 
+                    onClick={() => { setLang(lang === 'en' ? 'ar' : 'en'); setIsOptionsOpen(false); }}
+                    className="bg-purple-600 px-3 py-2 rounded-full border-2 border-black font-bold text-white text-xs flex items-center gap-2 hover:bg-purple-500 transition-all whitespace-nowrap"
+                  >
+                    <Languages className="w-4 h-4" /> {lang === 'en' ? 'AR' : 'EN'}
+                  </button>
+                  <button
+                    onClick={() => {
+                      if (audioRef.current) {
+                        if (isPlayingMusic) {
+                          audioRef.current.pause();
+                        } else {
+                          audioRef.current.play();
+                        }
+                        setIsPlayingMusic(!isPlayingMusic);
+                      }
+                      setIsOptionsOpen(false);
+                    }}
+                    className="bg-emerald-600 px-3 py-2 rounded-full border-2 border-black font-bold text-white text-xs flex items-center gap-2 hover:bg-emerald-500 transition-all whitespace-nowrap"
+                  >
+                    {isPlayingMusic ? "Stop Music" : "Play Music"}
+                  </button>
+                  <button 
+                    onClick={handleLogout}
+                    className="bg-black px-3 py-2 rounded-full border-2 border-black font-bold text-white text-xs flex items-center gap-2 hover:bg-zinc-800 transition-all whitespace-nowrap"
+                  >
+                    <LogOut className="w-4 h-4" /> {t.logout}
+                  </button>
+                </div>
+              )}
+            </div>
             {room && (
               <button 
                 onClick={() => setShowQR(true)}
@@ -372,20 +425,13 @@ export default function App() {
                 onClick={handleDisconnect}
                 className="bg-rose-500 px-5 py-2 rounded-full border-2 border-black shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] font-bold text-white text-xs flex items-center gap-2 hover:bg-rose-400 active:translate-y-1 active:shadow-[1px_1px_0px_0px_rgba(0,0,0,1)] transition-all"
               >
-                Disconnect
+                <WifiOff className="w-4 h-4" /> {t.disconnect}
               </button>
             )}
             
-            <button 
-              onClick={handleLogout}
-              className="bg-black px-5 py-2 rounded-full border-2 border-black shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] font-bold text-white text-xs flex items-center gap-2 hover:bg-zinc-800 active:translate-y-1 active:shadow-[1px_1px_0px_0px_rgba(0,0,0,1)] transition-all"
-            >
-              Logout
-            </button>
-            
             <div className="bg-emerald-400 px-5 py-2 rounded-full border-2 border-black shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] text-black font-bold text-xs flex items-center gap-2">
               <div className="w-2.5 h-2.5 bg-black rounded-full animate-ping" />
-              <span>LIVE AS: <strong className="font-black">{user.displayName?.toUpperCase()}</strong></span>
+              <span>{t.liveAs} <strong className="font-black">{user.displayName?.toUpperCase()}</strong></span>
             </div>
             
             {room && room.leaderId === user.uid && (
@@ -463,7 +509,7 @@ export default function App() {
                 className="bg-white border-4 border-black p-8 rounded-3xl shadow-[8px_8px_0px_0px_rgba(0,0,0,1)] flex flex-col items-center gap-6 max-w-sm w-full"
                 onClick={e => e.stopPropagation()}
               >
-                <h3 className="text-3xl font-black text-black uppercase italic text-center">Scan to Join</h3>
+                <h3 className="text-3xl font-black text-black uppercase italic text-center">{t.scanToJoin}</h3>
                 <div className="bg-white p-4 border-4 border-black rounded-xl">
                   <QRCodeSVG value={getRoomJoinUrl()} size={200} />
                 </div>
@@ -474,25 +520,27 @@ export default function App() {
                   onClick={() => setShowQR(false)}
                   className="w-full bg-black text-white font-bold py-3 rounded-xl hover:bg-gray-800 transition uppercase"
                 >
-                  Close
+                  {t.close}
                 </button>
               </motion.div>
             </motion.div>
           )}
         </AnimatePresence>
 
+        <audio ref={audioRef} loop src="https://www.dropbox.com/scl/fi/6qg1b3dye88prbuqpexia/Guess-Again.mp3?rlkey=snmgxok4w3gawmyo8nt31f9xv&st=4d1jpjiy&dl=1" />
+
         {/* LOBBY / JOIN ROOM SCREEN */}
         {!room ? (
           <div className="max-w-4xl mx-auto w-full my-auto flex flex-col gap-8 py-8" id="lobby-screen">
             <div className="text-center flex flex-col items-center bg-white border-4 border-black p-8 rounded-[32px] shadow-[8px_8px_0px_0px_rgba(0,0,0,1)] text-black">
               <span className="text-xs font-black tracking-widest text-indigo-700 uppercase bg-yellow-300 px-4 py-1.5 rounded-full mb-4 border-2 border-black shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]">
-                MULTIPLAYER ONLINE ARENA
+                {t.preGameLobby}
               </span>
               <h2 className="text-5xl font-black tracking-tight italic mb-3">
-                THE GUESSING ARENA
+                {t.whosDat}
               </h2>
               <p className="text-zinc-700 max-w-xl text-sm sm:text-base font-bold">
-                Join or spin up a room. Every player enters a secret character based on the chosen category. All active players can guess and gain points! Evaluated using Gemini AI.
+                {t.gameDescription}
               </p>
             </div>
 
@@ -503,16 +551,16 @@ export default function App() {
                   <div className="bg-emerald-400 text-black border-2 border-black shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] w-fit p-3 rounded-xl mb-4">
                     <Crown className="w-6 h-6 text-black" />
                   </div>
-                  <h3 className="text-2xl font-black mb-2 uppercase tracking-tight italic">Create Party</h3>
+                  <h3 className="text-2xl font-black mb-2 uppercase tracking-tight italic">{t.createParty}</h3>
                   <p className="text-xs text-zinc-600 mb-6 font-semibold leading-relaxed">
-                    Create a new room and choose a category for everyone's secret character.
+                    {t.createPartyDesc}
                   </p>
                   
                   <div className="mb-4">
-                    <label className="block text-xs font-black uppercase text-zinc-500 mb-2">Category</label>
+                    <label className="block text-xs font-black uppercase text-zinc-500 mb-2">{t.category}</label>
                     <input
                       type="text"
-                      placeholder="e.g., General Words"
+                      placeholder={t.categoryPlaceholder}
                       value={categoryInput}
                       onChange={(e) => setCategoryInput(e.target.value)}
                       className="w-full bg-zinc-50 border-2 border-zinc-300 rounded-xl p-3 font-bold text-zinc-800 focus:border-black focus:ring-0 outline-none placeholder:font-normal placeholder:text-zinc-400"
@@ -525,7 +573,7 @@ export default function App() {
                   disabled={loading}
                   className="w-full bg-pink-500 text-white font-black py-3.5 px-4 rounded-xl border-2 border-black shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] hover:bg-pink-400 active:translate-x-[2px] active:translate-y-[2px] active:shadow-[1px_1px_0px_0px_rgba(0,0,0,1)] disabled:opacity-50 transition flex items-center justify-center gap-2 text-sm uppercase"
                 >
-                  <Plus className="w-4 h-4" /> Create Room
+                  <Plus className="w-4 h-4" /> {t.createRoom}
                 </button>
               </motion.div>
 
@@ -534,20 +582,20 @@ export default function App() {
                   <div className="bg-indigo-500 text-white border-2 border-black shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] w-fit p-3 rounded-xl mb-2">
                     <Users className="w-6 h-6" />
                   </div>
-                  <h3 className="text-2xl font-black mb-1 uppercase tracking-tight italic">Join Party</h3>
+                  <h3 className="text-2xl font-black mb-1 uppercase tracking-tight italic">{t.joinParty}</h3>
                   <p className="text-xs text-zinc-600 mb-4 font-semibold leading-relaxed">
-                    Enter a room code to join an existing game.
+                    {t.joinPartyDesc}
                   </p>
                   
                   <div>
-                    <label className="block text-xs font-black uppercase text-zinc-500 mb-2">Room Code</label>
+                    <label className="block text-xs font-black uppercase text-zinc-500 mb-2">{t.roomCode}</label>
                     <div className="flex items-center">
                       <div className="bg-zinc-200 border-2 border-r-0 border-zinc-300 rounded-l-xl p-3 flex items-center justify-center">
                         <Target className="w-5 h-5 text-zinc-500" />
                       </div>
                       <input
                         type="text"
-                        placeholder="ENTER CODE"
+                        placeholder={t.roomCodePlaceholder}
                         value={customRoomCode}
                         onChange={(e) => setCustomRoomCode(e.target.value.toUpperCase())}
                         className="w-full bg-zinc-50 border-2 border-zinc-300 rounded-r-xl p-3 font-bold text-zinc-800 focus:border-black focus:ring-0 outline-none uppercase placeholder:text-zinc-400"
@@ -562,7 +610,7 @@ export default function App() {
                   disabled={loading || !customRoomCode.trim()}
                   className="w-full mt-6 bg-indigo-600 text-white font-black py-3.5 px-4 rounded-xl border-2 border-black shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] hover:bg-indigo-500 active:translate-x-[2px] active:translate-y-[2px] active:shadow-[1px_1px_0px_0px_rgba(0,0,0,1)] disabled:opacity-50 transition flex items-center justify-center gap-2 text-sm uppercase"
                 >
-                  <ArrowRight className="w-4 h-4" /> Enter Arena
+                  <ArrowRight className="w-4 h-4" /> {t.enterArena}
                 </button>
               </motion.div>
             </div>
@@ -572,25 +620,25 @@ export default function App() {
           <div className="bg-white border-4 border-black rounded-[32px] p-6 sm:p-8 md:p-12 shadow-[8px_8px_0px_0px_rgba(0,0,0,1)] text-black max-w-4xl mx-auto w-full">
             <div className="flex flex-col items-center text-center mb-10">
               <span className="bg-indigo-100 text-indigo-700 font-black text-xs px-4 py-1.5 rounded-full border-2 border-black shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] mb-4 uppercase tracking-widest">
-                PRE-GAME LOBBY
+                {t.preGameLobby}
               </span>
-              <h2 className="text-4xl sm:text-5xl font-black tracking-tight italic mb-3">ENTER YOUR CHARACTER</h2>
+              <h2 className="text-4xl sm:text-5xl font-black tracking-tight italic mb-3">{t.enterCharacter}</h2>
               <p className="text-zinc-600 font-bold max-w-lg">
                 The category is <span className="bg-yellow-300 px-2 py-0.5 border border-black shadow-[1px_1px_0px_0px_rgba(0,0,0,1)]">{room.category}</span>.
-                Pick someone tricky but guessable!
+                {t.pickTricky}
               </p>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
               <div className="bg-indigo-50 p-6 rounded-[24px] border-4 border-black shadow-[4px_4px_0px_0px_rgba(0,0,0,1)]">
                 <h3 className="text-xl font-black uppercase tracking-tight mb-4 flex items-center gap-2">
-                  <User className="w-5 h-5" /> Your Secret
+                  <User className="w-5 h-5" /> {t.yourSecret}
                 </h3>
                 
                 {currentPlayer?.secretWord ? (
                   <div className="bg-emerald-400 text-black border-2 border-black p-6 rounded-2xl text-center shadow-[inset_0px_4px_0px_rgba(255,255,255,0.3)]">
                     <CheckCircle2 className="w-12 h-12 mx-auto mb-3 text-black" />
-                    <p className="font-bold text-sm mb-1 opacity-80 uppercase tracking-widest">LOCKED IN AS</p>
+                    <p className="font-bold text-sm mb-1 opacity-80 uppercase tracking-widest">{t.lockedInAs}</p>
                     <p className="font-black text-2xl italic tracking-tight bg-black text-emerald-400 py-2 rounded-xl border-2 border-black shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]">
                       {currentPlayer.secretWord}
                     </p>
@@ -609,7 +657,7 @@ export default function App() {
                       disabled={loading || !secretWordInput.trim()}
                       className="w-full bg-black text-white font-black py-4 rounded-xl shadow-[3px_3px_0px_0px_rgba(100,100,100,1)] hover:bg-gray-800 disabled:opacity-50 transition uppercase tracking-widest"
                     >
-                      Submit Character
+                      {t.submitCharacter}
                     </button>
                   </div>
                 )}
@@ -617,7 +665,7 @@ export default function App() {
 
               <div>
                 <h3 className="text-xl font-black uppercase tracking-tight mb-4 flex items-center gap-2">
-                  <Users className="w-5 h-5" /> Connected Players ({players.length})
+                  <Users className="w-5 h-5" /> {t.connectedPlayers} ({players.length})
                 </h3>
                 <div className="flex flex-col gap-3">
                   {players.map((p) => (
@@ -629,13 +677,13 @@ export default function App() {
                         </span>
                       ) : (
                         <span className="bg-amber-100 text-amber-700 font-bold text-xs px-3 py-1 rounded-md border border-amber-300 animate-pulse">
-                          Thinking...
+                          {t.thinking}
                         </span>
                       )}
                     </div>
                   ))}
                   {players.length === 0 && (
-                    <p className="text-zinc-500 font-semibold italic text-sm p-4 text-center">Waiting for players...</p>
+                    <p className="text-zinc-500 font-semibold italic text-sm p-4 text-center">{t.waitingPlayers}</p>
                   )}
                 </div>
 
@@ -670,7 +718,7 @@ export default function App() {
                   className="bg-yellow-400 border-4 border-black rounded-[24px] p-8 shadow-[8px_8px_0px_0px_rgba(0,0,0,1)] text-center text-black flex flex-col items-center relative overflow-hidden"
                 >
                   <Trophy className="w-20 h-20 mb-4 text-black" />
-                  <h2 className="text-5xl font-black uppercase italic tracking-tight mb-2">GAME OVER!</h2>
+                  <h2 className="text-5xl font-black uppercase italic tracking-tight mb-2">{t.gameOver}</h2>
                   <p className="text-xl font-bold">
                     The winner is <span className="bg-white px-3 py-1 border-2 border-black rounded-lg">{players.find(p=>p.id === room.winnerId)?.name}</span> 
                     with <span className="font-black">{players.find(p=>p.id === room.winnerId)?.score} points</span>!
@@ -681,7 +729,7 @@ export default function App() {
                       onClick={handleResetGame}
                       className="mt-8 bg-black text-white font-black px-8 py-4 rounded-xl uppercase tracking-widest hover:bg-gray-800 transition active:scale-95 border-2 border-transparent"
                     >
-                      Play Again
+                      {t.playAgain}
                     </button>
                   )}
                 </motion.div>
@@ -693,8 +741,8 @@ export default function App() {
                         <MessageSquare className="w-5 h-5 text-white" />
                       </div>
                       <div>
-                        <h3 className="font-black text-black uppercase tracking-tight text-xl leading-none">Interrogation Board</h3>
-                        <p className="text-xs font-bold text-zinc-500 uppercase tracking-widest mt-1">Ask yes/no questions</p>
+                        <h3 className="font-black text-black uppercase tracking-tight text-xl leading-none">{t.interrogationBoard}</h3>
+                        <p className="text-xs font-bold text-zinc-500 uppercase tracking-widest mt-1">{t.askYesNoQuestions}</p>
                       </div>
                     </div>
                   </div>
@@ -894,7 +942,7 @@ export default function App() {
                 {activeTab === 'board' ? (
                   <div className="p-5 flex flex-col h-full">
                     <h3 className="font-black text-black uppercase tracking-tight text-xl mb-4 flex items-center gap-2">
-                      <Trophy className="w-5 h-5 text-yellow-500" /> Leaderboard
+                      <Trophy className="w-5 h-5 text-yellow-500" /> {t.leaderboard}
                     </h3>
                     <div className="flex flex-col gap-3 flex-1 overflow-y-auto custom-scrollbar pr-1">
                       {players.sort((a,b) => b.score - a.score).map((p, idx) => (
@@ -925,7 +973,7 @@ export default function App() {
                 ) : (
                   <div className="p-5 flex flex-col h-full bg-zinc-50">
                     <h3 className="font-black text-black uppercase tracking-tight text-xl mb-4 flex items-center gap-2">
-                      <Info className="w-5 h-5 text-indigo-500" /> Recent Activity
+                      <Info className="w-5 h-5 text-indigo-500" /> {t.recentActivity}
                     </h3>
                     <div ref={historyContainerRef} className="flex-1 overflow-y-auto pr-1 flex flex-col gap-2.5 custom-scrollbar">
                       {history.map((ev) => {
@@ -946,7 +994,7 @@ export default function App() {
                           <div key={ev.id} className={`p-3 rounded-xl border-2 flex items-start gap-3 ${cardStyle} shadow-[2px_2px_0px_0px_rgba(0,0,0,0.05)]`}>
                             <div className="mt-0.5">{icon}</div>
                             <div className="flex-1">
-                              <p className="font-bold text-sm leading-snug">{ev.message}</p>
+                              <p className="font-bold text-sm leading-snug">{ev.messageKey ? t(ev.messageKey, lang, ev.messageArgs) : ev.message}</p>
                               <span className="text-[10px] font-black uppercase opacity-50 mt-1 block tracking-wider">
                                 {new Date(ev.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                               </span>
