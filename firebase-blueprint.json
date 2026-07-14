@@ -1,0 +1,80 @@
+{
+  "entities": {
+    "Room": {
+      "title": "Room",
+      "description": "A game session room",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "status": { "type": "string", "enum": ["lobby", "playing", "finished"] },
+        "activeTargetPlayerId": { "type": "string" },
+        "winnerId": { "type": "string" },
+        "category": { "type": "string" },
+        "leaderId": { "type": "string" },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["id", "status", "createdAt", "leaderId"]
+    },
+    "Player": {
+      "title": "Player",
+      "description": "A player in a room",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "uid": { "type": "string" },
+        "name": { "type": "string" },
+        "secretCharacter": { "type": "string" },
+        "state": { "type": "string", "enum": ["ACTIVE", "COMPLETED"] },
+        "score": { "type": "number" },
+        "hasGuessedThisRound": { "type": "boolean" },
+        "joinedAt": { "type": "string" }
+      },
+      "required": ["id", "uid", "name", "state", "score", "hasGuessedThisRound", "joinedAt"]
+    },
+    "GameEvent": {
+      "title": "GameEvent",
+      "description": "An event in the room history",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "type": { "type": "string" },
+        "timestamp": { "type": "string" },
+        "message": { "type": "string" },
+        "playerName": { "type": "string" }
+      },
+      "required": ["id", "type", "timestamp", "message"]
+    },
+    "Question": {
+      "title": "Question",
+      "description": "A question asked by a player",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "askerId": { "type": "string" },
+        "askerName": { "type": "string" },
+        "text": { "type": "string" },
+        "answer": { "type": "string", "enum": ["YES", "NO", "PENDING"] },
+        "timestamp": { "type": "string" }
+      },
+      "required": ["id", "askerId", "askerName", "text", "answer", "timestamp"]
+    }
+  },
+  "firestore": {
+    "rooms/{roomId}": {
+      "schema": { "$ref": "#/entities/Room" },
+      "description": "Rooms for the game"
+    },
+    "rooms/{roomId}/players/{playerId}": {
+      "schema": { "$ref": "#/entities/Player" },
+      "description": "Players in a room"
+    },
+    "rooms/{roomId}/history/{eventId}": {
+      "schema": { "$ref": "#/entities/GameEvent" },
+      "description": "Event history for a room"
+    },
+    "rooms/{roomId}/questions/{questionId}": {
+      "schema": { "$ref": "#/entities/Question" },
+      "description": "Questions asked in a room"
+    }
+  }
+}
