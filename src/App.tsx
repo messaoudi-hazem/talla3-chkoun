@@ -4,14 +4,14 @@ import {
   Trophy, Target, User, Users, HelpCircle, Send, 
   CheckCircle2, XCircle, ArrowRight, RotateCcw, 
   Plus, Play, Sparkles, MessageSquare, Crown, 
-  Shuffle, LogIn, Info, UserSearch, UserCheck, QrCode,
+  Shuffle, LogIn, Info, UserSearch, UserCheck, QrCode, Bug,
   LogOut, WifiOff, Languages, Settings
 } from "lucide-react";
 import { QRCodeSVG } from 'qrcode.react';
 import { Player, Room, GameEvent, Question } from "./types";
 import { auth, googleProvider, db } from "./lib/firebase";
 import { signInWithPopup, User as FirebaseUser, signOut } from "firebase/auth";
-import { collection, doc, onSnapshot, query, orderBy } from "firebase/firestore";
+import { collection, doc, onSnapshot, query, orderBy, addDoc } from "firebase/firestore";
 import * as gameLogic from "./lib/gameLogic";
 import { translations, t as translate } from "./translations";
 
@@ -106,6 +106,10 @@ export default function App() {
   const [activeTab, setActiveTab] = useState<'board' | 'history' | 'players'>('board');
   const [customRoomCode, setCustomRoomCode] = useState<string>("");
   const [showQR, setShowQR] = useState(false);
+  const [isBugModalOpen, setIsBugModalOpen] = useState(false);
+  const [bugDescription, setBugDescription] = useState("");
+  const [isSubmittingBug, setIsSubmittingBug] = useState(false);
+  const [bugReportSuccess, setBugReportSuccess] = useState(false);
 
   const getRoomJoinUrl = () => {
     let origin = "https://ais-dev-oxicsvn4rhdj74o4qoli4h-302185868240.europe-west2.run.app";
@@ -431,6 +435,39 @@ export default function App() {
     }
   };
 
+  const handleReportBug = () => {
+    setIsBugModalOpen(true);
+    setIsOptionsOpen(false);
+    setBugReportSuccess(false);
+    setBugDescription("");
+  };
+
+  const submitBugReport = async () => {
+    if (!bugDescription.trim() || !user) return;
+    setIsSubmittingBug(true);
+    try {
+      await addDoc(collection(db, "bug_reports"), {
+        userId: user.uid,
+        userEmail: user.email,
+        userName: user.displayName || "Anonymous",
+        roomId: roomId || "N/A",
+        description: bugDescription,
+        timestamp: new Date().toISOString()
+      });
+      setBugReportSuccess(true);
+      setBugDescription("");
+      setTimeout(() => {
+        setIsBugModalOpen(false);
+        setBugReportSuccess(false);
+      }, 2000);
+    } catch (err) {
+      console.error("Error submitting bug report:", err);
+      setError(t.reportError);
+    } finally {
+      setIsSubmittingBug(false);
+    }
+  };
+
   if (!user) {
     return (
       <div className="min-h-screen bg-[#4338CA] flex items-center justify-center p-4 selection:bg-pink-500">
@@ -555,6 +592,12 @@ export default function App() {
                     {isPlayingMusic ? "Stop Music" : "Play Music"}
                   </button>
                   <button 
+                    onClick={handleReportBug}
+                    className="bg-amber-500 px-3 py-2 rounded-full border-2 border-black font-bold text-white text-xs flex items-center gap-2 hover:bg-amber-400 transition-all whitespace-nowrap"
+                  >
+                    <Bug className="w-4 h-4" /> {t.reportBug}
+                  </button>
+                  <button 
                     onClick={handleLogout}
                     className="bg-black px-3 py-2 rounded-full border-2 border-black font-bold text-white text-xs flex items-center gap-2 hover:bg-zinc-800 transition-all whitespace-nowrap"
                   >
@@ -641,6 +684,77 @@ export default function App() {
                 >
                   {t.close}
                 </button>
+              </motion.div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* Bug Report Modal */}
+        <AnimatePresence>
+          {isBugModalOpen && (
+            <motion.div 
+              initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+              className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm"
+              onClick={() => !isSubmittingBug && setIsBugModalOpen(false)}
+            >
+              <motion.div 
+                initial={{ scale: 0.9, y: 20 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.9, y: 20 }}
+                className="bg-white border-4 border-black p-8 rounded-[32px] shadow-[8px_8px_0px_0px_rgba(0,0,0,1)] flex flex-col gap-6 max-w-md w-full relative"
+                onClick={e => e.stopPropagation()}
+              >
+                {bugReportSuccess ? (
+                  <div className="flex flex-col items-center py-8 text-center gap-4">
+                    <div className="w-16 h-16 bg-emerald-400 rounded-2xl border-2 border-black shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] flex items-center justify-center">
+                      <CheckCircle2 className="w-10 h-10 text-black" />
+                    </div>
+                    <p className="font-black text-xl text-black uppercase italic">{t.reportSent}</p>
+                  </div>
+                ) : (
+                  <>
+                    <div className="flex items-center gap-4">
+                      <div className="bg-amber-400 p-3 rounded-2xl border-2 border-black shadow-[4px_4px_0px_0px_rgba(0,0,0,1)]">
+                        <Bug className="w-6 h-6 text-black" />
+                      </div>
+                      <h3 className="text-2xl font-black text-black uppercase italic">{t.reportIssue}</h3>
+                    </div>
+                    
+                    <div className="flex flex-col gap-2">
+                      <div className="flex justify-between items-center px-1">
+                        <label className="text-[10px] font-black uppercase text-zinc-500 tracking-wider">ROOM: {roomId || 'N/A'}</label>
+                        <label className="text-[10px] font-black uppercase text-zinc-500 tracking-wider">USER: {user?.displayName || 'Guest'}</label>
+                      </div>
+                      <textarea
+                        value={bugDescription}
+                        onChange={(e) => setBugDescription(e.target.value)}
+                        placeholder={t.issuePlaceholder}
+                        className="w-full bg-zinc-100 border-2 border-black rounded-xl p-4 font-bold text-black min-h-[150px] focus:outline-none focus:ring-4 focus:ring-amber-200 resize-none transition-all"
+                        disabled={isSubmittingBug}
+                      />
+                    </div>
+
+                    <div className="flex gap-3 mt-2">
+                      <button 
+                        onClick={() => setIsBugModalOpen(false)}
+                        className="flex-1 bg-zinc-200 text-zinc-600 font-black py-4 rounded-xl border-2 border-black shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] active:translate-x-[2px] active:translate-y-[2px] active:shadow-none transition-all uppercase text-sm"
+                        disabled={isSubmittingBug}
+                      >
+                        {t.cancel}
+                      </button>
+                      <button 
+                        onClick={submitBugReport}
+                        disabled={isSubmittingBug || !bugDescription.trim()}
+                        className="flex-1 bg-amber-400 text-black font-black py-4 rounded-xl border-2 border-black shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] active:translate-x-[2px] active:translate-y-[2px] active:shadow-none transition-all uppercase text-sm disabled:opacity-50 disabled:grayscale disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                      >
+                        {isSubmittingBug ? (
+                          <div className="w-5 h-5 border-2 border-black border-t-transparent rounded-full animate-spin" />
+                        ) : (
+                          <Send className="w-4 h-4" />
+                        )}
+                        {t.sendReport}
+                      </button>
+                    </div>
+                  </>
+                )}
               </motion.div>
             </motion.div>
           )}

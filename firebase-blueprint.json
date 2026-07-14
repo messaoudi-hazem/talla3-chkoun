@@ -58,6 +58,21 @@
         "timestamp": { "type": "string" }
       },
       "required": ["id", "askerId", "askerName", "text", "answer", "timestamp"]
+    },
+    "BugReport": {
+      "title": "BugReport",
+      "description": "A bug report submitted by a user",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "userId": { "type": "string" },
+        "userEmail": { "type": "string" },
+        "userName": { "type": "string" },
+        "roomId": { "type": "string" },
+        "description": { "type": "string" },
+        "timestamp": { "type": "string" }
+      },
+      "required": ["id", "userId", "userEmail", "description", "timestamp"]
     }
   },
   "firestore": {
@@ -76,6 +91,10 @@
     "rooms/{roomId}/questions/{questionId}": {
       "schema": { "$ref": "#/entities/Question" },
       "description": "Questions asked in a room"
+    },
+    "bug_reports/{reportId}": {
+      "schema": { "$ref": "#/entities/BugReport" },
+      "description": "Bug reports submitted by users"
     }
   }
 }

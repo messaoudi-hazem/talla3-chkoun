@@ -26,5 +26,10 @@ service cloud.firestore {
         allow write: if isAuthenticated();
       }
     }
+
+    match /bug_reports/{reportId} {
+      allow create: if isAuthenticated();
+      allow read: if false;
+    }
   }
 }
