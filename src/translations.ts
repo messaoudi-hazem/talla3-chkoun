@@ -1,7 +1,7 @@
 const translations = {
   en: {
-    whosDat: "GUESSING GAME",
-    gameDescription: "Multiplayer Guessing Game",
+    whosDat: "WHOSDAT?",
+    gameDescription: "Multiplayer Character Guessing Game",
     disconnect: "Disconnect",
     logout: "Logout",
     liveAs: "LIVE AS:",
@@ -80,8 +80,8 @@ const translations = {
     answerQuestionsAccurately: "Answer questions accurately to keep the game fair!"
   },
   ar: {
-    whosDat: "لعبة التخمين",
-    gameDescription: "لعبة التخمين الجماعية",
+    whosDat: "شكون هذا؟",
+    gameDescription: "لعبة تخمين الشخصيات الجماعية",
     disconnect: "قطع الاتصال",
     logout: "تسجيل الخروج",
     liveAs: "متصل باسم:",
