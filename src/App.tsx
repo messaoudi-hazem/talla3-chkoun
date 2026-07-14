@@ -30,23 +30,51 @@ export default function App() {
   const [categoryInput, setCategoryInput] = useState<string>("General Words");
   const [isOptionsOpen, setIsOptionsOpen] = useState<boolean>(false);
   const [isPlayingMusic, setIsPlayingMusic] = useState<boolean>(true);
+  const [isMuted, setIsMuted] = useState<boolean>(false);
   const audioRef = useRef<HTMLAudioElement>(null);
+  const clickAudioRef = useRef<HTMLAudioElement>(null);
 
   useEffect(() => {
     const playMusic = () => {
-      if (audioRef.current) {
+      if (audioRef.current && !isMuted && isPlayingMusic) {
         audioRef.current.play().catch(e => console.log("Auto-play prevented", e));
-        document.removeEventListener('click', playMusic);
+        removeInteractionListeners();
       }
     };
-    document.addEventListener('click', playMusic);
 
-    if (isPlayingMusic && audioRef.current) {
+    const removeInteractionListeners = () => {
+      document.removeEventListener('click', playMusic);
+      document.removeEventListener('mousedown', playMusic);
+      document.removeEventListener('touchstart', playMusic);
+      document.removeEventListener('keydown', playMusic);
+    };
+
+    document.addEventListener('click', playMusic);
+    document.addEventListener('mousedown', playMusic);
+    document.addEventListener('touchstart', playMusic);
+    document.addEventListener('keydown', playMusic);
+
+    // Global click sound for all buttons - use mousedown for better response
+    const handleGlobalMouseDown = (e: MouseEvent | TouchEvent) => {
+      const target = e.target as HTMLElement;
+      if (target.closest('button') && !isMuted && clickAudioRef.current) {
+        clickAudioRef.current.currentTime = 0;
+        clickAudioRef.current.play().catch(() => {});
+      }
+    };
+    document.addEventListener('mousedown', handleGlobalMouseDown);
+    document.addEventListener('touchstart', handleGlobalMouseDown);
+
+    if (isPlayingMusic && audioRef.current && !isMuted) {
       audioRef.current.play().catch(e => console.log("Auto-play prevented", e));
     }
 
-    return () => document.removeEventListener('click', playMusic);
-  }, []);
+    return () => {
+      removeInteractionListeners();
+      document.removeEventListener('mousedown', handleGlobalMouseDown);
+      document.removeEventListener('touchstart', handleGlobalMouseDown);
+    };
+  }, [isMuted, isPlayingMusic]);
   const [secretWordInput, setSecretWordInput] = useState<string>("");
   const [questionInput, setQuestionInput] = useState<string>("");
   const [guessInput, setGuessInput] = useState<string>("");
@@ -398,10 +426,24 @@ export default function App() {
                   </button>
                   <button
                     onClick={() => {
+                      setIsMuted(!isMuted);
+                      if (!isMuted && audioRef.current) {
+                        audioRef.current.pause();
+                      } else if (isMuted && isPlayingMusic && audioRef.current) {
+                        audioRef.current.play().catch(() => {});
+                      }
+                      setIsOptionsOpen(false);
+                    }}
+                    className={`${isMuted ? 'bg-red-600 hover:bg-red-500' : 'bg-slate-600 hover:bg-slate-500'} px-3 py-2 rounded-full border-2 border-black font-bold text-white text-xs flex items-center gap-2 transition-all whitespace-nowrap`}
+                  >
+                    {isMuted ? "Unmute All" : "Mute All"}
+                  </button>
+                  <button
+                    onClick={() => {
                       if (audioRef.current) {
                         if (isPlayingMusic) {
                           audioRef.current.pause();
-                        } else {
+                        } else if (!isMuted) {
                           audioRef.current.play();
                         }
                         setIsPlayingMusic(!isPlayingMusic);
@@ -538,6 +580,7 @@ export default function App() {
         </AnimatePresence>
 
         <audio ref={audioRef} loop src="https://www.dropbox.com/scl/fi/6qg1b3dye88prbuqpexia/Guess-Again.mp3?rlkey=snmgxok4w3gawmyo8nt31f9xv&st=4d1jpjiy&dl=1" />
+        <audio ref={clickAudioRef} src="https://www.dropbox.com/scl/fi/w9hzmfmmdwadbseiiv615/click.mp3?rlkey=2pi0d2k15v4ti5ip0qup8wtg6&st=k45vzg6g&dl=1" />
 
         {/* LOBBY / JOIN ROOM SCREEN */}
         {!room ? (
