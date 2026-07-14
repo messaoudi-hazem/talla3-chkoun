@@ -33,9 +33,27 @@ export default function App() {
   const [isMuted, setIsMuted] = useState<boolean>(false);
   const audioRef = useRef<HTMLAudioElement>(null);
   const clickAudioRef = useRef<HTMLAudioElement>(null);
+  const winAudioRef = useRef<HTMLAudioElement>(null);
+  const lossAudioRef = useRef<HTMLAudioElement>(null);
 
   useEffect(() => {
+    const unlockAudio = () => {
+      // Mobile browsers require audio to be played within a user interaction
+      [audioRef, clickAudioRef, winAudioRef, lossAudioRef].forEach(ref => {
+        if (ref.current) {
+          const p = ref.current.play();
+          if (p !== undefined) {
+            p.then(() => {
+              ref.current?.pause();
+              if (ref.current) ref.current.currentTime = 0;
+            }).catch(() => {});
+          }
+        }
+      });
+    };
+
     const playMusic = () => {
+      unlockAudio();
       if (audioRef.current && !isMuted && isPlayingMusic) {
         audioRef.current.play().catch(e => console.log("Auto-play prevented", e));
         removeInteractionListeners();
@@ -169,6 +187,36 @@ export default function App() {
 
     return () => unsubs.forEach(fn => fn());
   }, [roomId, user]);
+
+  useEffect(() => {
+    if (history.length === 0) return;
+    const lastEvent = history[history.length - 1];
+    
+    // Determine timestamp
+    let eventTime = 0;
+    if (lastEvent.timestamp) {
+      if (typeof (lastEvent.timestamp as any).toMillis === 'function') {
+        eventTime = (lastEvent.timestamp as any).toMillis();
+      } else if ((lastEvent.timestamp as any).seconds) {
+        eventTime = (lastEvent.timestamp as any).seconds * 1000;
+      } else if (lastEvent.timestamp instanceof Date) {
+        eventTime = lastEvent.timestamp.getTime();
+      }
+    }
+    
+    const now = Date.now();
+    
+    // Only play if the event is very recent (within last 3 seconds)
+    if (eventTime && (now - eventTime < 3000)) {
+      if (lastEvent.type === "guess_correct" && winAudioRef.current && !isMuted) {
+        winAudioRef.current.currentTime = 0;
+        winAudioRef.current.play().catch(() => {});
+      } else if (lastEvent.type === "guess_wrong" && lossAudioRef.current && !isMuted) {
+        lossAudioRef.current.currentTime = 0;
+        lossAudioRef.current.play().catch(() => {});
+      }
+    }
+  }, [history, isMuted]);
 
   useEffect(() => {
     if (historyContainerRef.current) {
@@ -588,6 +636,8 @@ export default function App() {
 
         <audio ref={audioRef} loop src="https://www.dropbox.com/scl/fi/6qg1b3dye88prbuqpexia/Guess-Again.mp3?rlkey=snmgxok4w3gawmyo8nt31f9xv&st=4d1jpjiy&dl=1" />
         <audio ref={clickAudioRef} src="https://www.dropbox.com/scl/fi/w9hzmfmmdwadbseiiv615/click.mp3?rlkey=2pi0d2k15v4ti5ip0qup8wtg6&st=k45vzg6g&dl=1" />
+        <audio ref={winAudioRef} src="https://www.dropbox.com/scl/fi/aprrma19gawoaxyeaxhvc/win.mp3?rlkey=211q81do5jo3vj0il3eppeeeq&st=gdtfinbv&dl=1" />
+        <audio ref={lossAudioRef} src="https://www.dropbox.com/scl/fi/jh9mjaxxiwfzxet3dzze4/loss.mp3?rlkey=19ay9v9bagii47pu2bi2x8suq&st=c8n2vobh&dl=1" />
 
         {/* LOBBY / JOIN ROOM SCREEN */}
         {!room ? (

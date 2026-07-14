@@ -343,13 +343,24 @@ export async function resetGame(roomId: string, players: Player[], lang: 'en' | 
 
 export async function addGameEvent(roomId: string, type: string, messageKey: string, lang: 'en' | 'ar', messageArgs?: Record<string, any>, playerName?: string) {
   const evId = generateDocId();
+  
+  // Firestore does not support 'undefined' values. Sanitize messageArgs.
+  const sanitizedArgs: Record<string, any> = {};
+  if (messageArgs) {
+    Object.keys(messageArgs).forEach(key => {
+      if (messageArgs[key] !== undefined) {
+        sanitizedArgs[key] = messageArgs[key];
+      }
+    });
+  }
+
   const ev: GameEvent = {
     id: evId,
     type,
     timestamp: new Date().toISOString(),
-    message: t(messageKey, lang, messageArgs),
+    message: t(messageKey, lang, sanitizedArgs),
     messageKey,
-    messageArgs
+    messageArgs: sanitizedArgs
   };
   if (playerName) {
     ev.playerName = playerName;
