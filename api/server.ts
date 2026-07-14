@@ -18,26 +18,33 @@ function cleanString(str: any): string {
 
 // Gemini evaluate guess proxy
 app.post("/api/gemini/evaluate-guess", async (req, res) => {
-  const { targetName, guess, category } = req.body;
-  if (!targetName || !guess) {
-    return res.status(400).json({ error: "Missing targetName or guess" });
+  try {
+    console.log("Received guess request:", req.body);
+    const { targetName, guess, category } = req.body;
+    if (!targetName || !guess) {
+      console.warn("Missing targetName or guess:", req.body);
+      return res.status(400).json({ error: "Missing targetName or guess" });
+    }
+
+    const cleanTarget = cleanString(targetName);
+    const cleanGuess = cleanString(guess);
+
+    // 1. Direct exact match
+    if (cleanTarget === cleanGuess) {
+      return res.json({ isMatch: true, explanation: "Exact match" });
+    }
+
+    // 2. Simple character-by-character similarity heuristic
+    if (cleanGuess.length >= 4 && (cleanTarget.includes(cleanGuess) || cleanGuess.includes(cleanTarget))) {
+      return res.json({ isMatch: true, explanation: "Sub-string matching" });
+    }
+
+    // 3. Fallback: Not a match
+    return res.json({ isMatch: false, explanation: "Incorrect guess (local validation)" });
+  } catch (err: any) {
+    console.error("Error in evaluate-guess:", err);
+    return res.status(500).json({ error: "Internal server error" });
   }
-
-  const cleanTarget = cleanString(targetName);
-  const cleanGuess = cleanString(guess);
-
-  // 1. Direct exact match
-  if (cleanTarget === cleanGuess) {
-    return res.json({ isMatch: true, explanation: "Exact match" });
-  }
-
-  // 2. Simple character-by-character similarity heuristic
-  if (cleanGuess.length >= 4 && (cleanTarget.includes(cleanGuess) || cleanGuess.includes(cleanTarget))) {
-    return res.json({ isMatch: true, explanation: "Sub-string matching" });
-  }
-
-  // 3. Fallback: Not a match
-  return res.json({ isMatch: false, explanation: "Incorrect guess (local validation)" });
 });
 
 // Vite middleware for development
